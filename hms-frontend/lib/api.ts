@@ -33,6 +33,10 @@ export async function apiFetch<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
+    if (path.includes('/api/auth/login')) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body.message || 'Invalid credentials');
+    }
     // Token expired or invalid
     if (typeof window !== 'undefined') {
       localStorage.removeItem('accessToken');

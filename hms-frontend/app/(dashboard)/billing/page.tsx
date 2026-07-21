@@ -398,9 +398,9 @@ export default function BillingPage() {
                     {folioData.items.map((item: any, i: number) => (
                       <tr key={i}>
                         <td className="py-2 text-xs text-theme-muted-light">{item.description}</td>
-                        <td className="py-2 text-xs text-theme-muted-light text-center">{item.qty}</td>
-                        <td className="py-2 text-xs text-theme-muted-light text-right">{currencySymbol} {item.rate.toFixed(2)}</td>
-                        <td className="py-2 text-xs text-theme-text font-medium text-right">{currencySymbol} {item.amount.toFixed(2)}</td>
+                        <td className="py-2 text-xs text-theme-muted-light text-center">{item.qty || '-'}</td>
+                        <td className="py-2 text-xs text-theme-muted-light text-right">{item.rate !== undefined && item.rate !== null ? `${currencySymbol} ${Number(item.rate).toFixed(2)}` : '-'}</td>
+                        <td className="py-2 text-xs text-theme-text font-medium text-right">{currencySymbol} {Number(item.amount).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

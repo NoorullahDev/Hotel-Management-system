@@ -6,7 +6,7 @@ const waitOn = require('wait-on');
 // Configuration
 const BACKEND_PORT = 4000;
 const FRONTEND_PORT = 3000;
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
+const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
 
 let mainWindow = null;
@@ -37,7 +37,7 @@ function startBackend() {
 
     // Use npx nodemon for dev, or node for production
     const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    backendProcess = spawn(command, ['nodemon', 'src/server.ts'], {
+    backendProcess = spawn(command, ['ts-node', '--transpile-only', 'src/server.ts'], {
       cwd: backendDir,
       env: { ...process.env, PORT: String(BACKEND_PORT) },
       shell: true,

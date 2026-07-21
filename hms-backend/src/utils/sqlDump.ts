@@ -46,6 +46,10 @@ export function generateSqlDump(data: any): string {
 
     for (const row of rows) {
       const values = columns.map(c => {
+        if (jsonbCols.includes(c)) {
+          // JSON columns must be rigorously stringified to survive SQLite raw queries
+          return `'${JSON.stringify(row[c]).replace(/'/g, "''")}'`;
+        }
         return formatValue(row[c]);
       });
       tableSql += `INSERT INTO "${tableName}" (${columnsString}) VALUES (${values.join(', ')});\n`;
@@ -55,7 +59,7 @@ export function generateSqlDump(data: any): string {
 
   // Insert in dependency order.
   sql += generateInserts('Role', data.roles);
-  sql += generateInserts('Setting', data.settings);
+  sql += generateInserts('Setting', data.settings, ['value']);
   sql += generateInserts('HotelSettings', data.hotelSettings);
 
   sql += generateInserts('MenuCategory', data.menuCategories);
@@ -80,7 +84,7 @@ export function generateSqlDump(data: any): string {
   sql += generateInserts('OrderItem', data.orderItems);
 
   sql += generateInserts('Feedback', data.feedbacks);
-  sql += generateInserts('Notification', data.notifications);
+  sql += generateInserts('Notification', data.notifications, ['metadata']);
   sql += generateInserts('NotificationPreference', data.notificationPreferences);
   sql += generateInserts('AuditLog', data.auditLogs);
 

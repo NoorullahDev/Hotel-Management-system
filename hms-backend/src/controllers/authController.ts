@@ -20,13 +20,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      user = await prisma.user.findFirst({
-        where: { name: email },
-        include: { role: true },
-      });
-    }
-
-    if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 

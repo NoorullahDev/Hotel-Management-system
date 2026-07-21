@@ -47,11 +47,16 @@ export default function SecurityTab() {
     try {
       await api.post('/api/settings/account/change-password', { currentPassword, newPassword });
 
-      setPasswordSuccess('Password updated successfully');
+      setPasswordSuccess('Password updated successfully. Please log in again with your new password.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setTimeout(() => setPasswordSuccess(''), 5000);
+      
+      setTimeout(() => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+      }, 2000);
     } catch (err: any) {
       setPasswordError(err.message);
     }
@@ -70,10 +75,15 @@ export default function SecurityTab() {
     try {
       await api.post('/api/settings/account/change-email', { newEmail: newUsername });
 
-      setUsernameSuccess('Username updated successfully. Use your new username to login.');
+      setUsernameSuccess('Username updated successfully. Please log in again with your new username.');
       setCurrentUsername(newUsername);
       setNewUsername('');
-      setTimeout(() => setUsernameSuccess(''), 5000);
+      
+      setTimeout(() => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+      }, 2000);
     } catch (err: any) {
       setUsernameError(err.message);
     }

@@ -170,7 +170,7 @@ export const changeEmail = asyncHandler(async (req: AuthRequest, res: Response) 
 
     const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
     if (existingUser && existingUser.id !== userId) {
-      return res.status(400).json({ message: 'Email is already in use by another account' });
+      return res.status(400).json({ message: 'Username is already in use by another account' });
     }
 
     const user = await prisma.user.update({ where: { id: userId }, data: { email: newEmail } });
@@ -418,23 +418,19 @@ export const restoreDatabase = asyncHandler(async (req: Request, res: Response) 
       statements.push(lastTrimmed);
     }
 
-    // Execute all statements using Prisma $executeRawUnsafe
-    // Disable foreign keys, run all deletes and inserts, then re-enable
-    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF');
-
+    // Execute all statements within a transaction to ensure atomicity
     try {
-      for (const stmt of statements) {
-        try {
-          await prisma.$executeRawUnsafe(stmt);
-        } catch (err) {
-          console.error(`Failed to execute statement: ${stmt}`, err);
+      await prisma.$transaction(async (tx) => {
+        // We do not need PRAGMA foreign_keys = OFF because tables are deleted/inserted in dependency order
+        for (const stmt of statements) {
+          await tx.$executeRawUnsafe(stmt);
         }
-      }
-    } finally {
-      await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON');
+      });
+      res.json({ message: 'Database restored successfully' });
+    } catch (err: any) {
+      console.error('Restore failed:', err);
+      res.status(500).json({ message: `Restore failed: ${err.message}` });
     }
-
-    res.json({ message: 'Database restored successfully' });
   });
 
 // ── Get Last Backup Info ────────────────────────────────────────────────────

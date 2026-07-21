@@ -274,7 +274,10 @@ export default function BackupRestoreTab() {
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setSuccessModal({ show: false, message: '' })}
+                onClick={() => {
+                  setSuccessModal({ show: false, message: '' });
+                  window.location.reload();
+                }}
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-medium transition-colors"
               >
                 OK

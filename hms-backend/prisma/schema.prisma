@@ -1,0 +1,314 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  permissions Json     @default("[]")
+  users       User[]
+}
+
+model User {
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  passwordHash        String
+  name                String
+  phone               String?
+  profilePhoto        String?
+  roleId              String
+  role                Role           @relation(fields: [roleId], references: [id])
+  oauthProvider       String?
+  failedLoginAttempts Int            @default(0)
+  lockedUntil         DateTime?
+  staff               Staff?
+  notifications       Notification[]
+  notificationPreference NotificationPreference?
+  auditLogs           AuditLog[]
+}
+
+model Staff {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeId        String?            @unique @default(uuid())
+  role              String?            @default("Staff")
+  department        String
+  shift             String?
+  attendance        Float?             @default(100.0)
+  hireDate          DateTime
+  status            String
+  housekeepingTasks HousekeepingTask[]
+}
+
+model Guest {
+  id          String    @id @default(uuid())
+  guestType   String    @default("LOCAL") // "LOCAL" or "FOREIGN"
+  name        String
+  email       String?   @unique
+  phone       String?
+  idType      String?
+  idNumber    String?
+  nationality String?
+  city        String?
+  country     String?
+  address     String?
+  notes       String?
+  bookings    Booking[]
+
+  @@index([name])
+  @@index([guestType])
+  @@index([phone])
+  @@index([nationality])
+}
+
+model RoomType {
+  id    String @id @default(uuid())
+  name  String
+  rooms Room[]
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+  MAINTENANCE
+}
+
+model Room {
+  id                String             @id @default(uuid())
+  number            String             @unique
+  floor             Int
+  roomTypeId        String
+  roomType          RoomType           @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+  price             Decimal
+  status            RoomStatus         @default(AVAILABLE)
+  amenities         String   @default("[]")
+  imageUrl          String?
+  bookings          Booking[]
+  housekeepingTasks HousekeepingTask[]
+  roomMaintenances  RoomMaintenance[]
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+model Booking {
+  id               String        @id @default(uuid())
+  bookingType      String        @default("LOCAL") // "LOCAL" or "FOREIGN"
+  guestId          String
+  guest            Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  roomId           String
+  room             Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  checkIn          DateTime
+  checkOut         DateTime
+  arrivalTime      DateTime?
+  guestCount       Int
+  additionalGuests Json?
+  status           BookingStatus @default(CONFIRMED)
+  subtotal         Decimal
+  tax              Decimal
+  total            Decimal
+  createdAt        DateTime      @default(now())
+
+  payments         Payment[]
+  invoice          Invoice?
+  foodOrders       FoodOrder[]
+  feedback         Feedback?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([checkIn, checkOut])
+  @@index([guestId])
+  @@index([roomId])
+  @@index([bookingType])
+  @@index([bookingType, status])
+  @@index([status, checkIn])
+  @@index([createdAt, status])
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount    Decimal
+  method    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([bookingId])
+  @@index([method])
+  @@index([createdAt, method])
+}
+
+model Invoice {
+  id        String        @id @default(uuid())
+  bookingId String        @unique
+  booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  items     InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  amount      Decimal
+}
+
+model FoodOrder {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique @default(uuid()) // Short ORD-XXXX
+  bookingId   String
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  status      String      // Pending, Preparing, Ready, Served
+  items       OrderItem[]
+  totalAmount Decimal     @default(0)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  acceptedAt  DateTime?
+  preparingAt DateTime?
+  readyAt     DateTime?
+  servedAt    DateTime?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([bookingId])
+  @@index([createdAt, status])
+}
+
+model OrderItem {
+  id          String    @id @default(uuid())
+  foodOrderId String
+  foodOrder   FoodOrder @relation(fields: [foodOrderId], references: [id], onDelete: Cascade)
+  itemName    String
+  quantity    Int
+  price       Decimal
+}
+
+model MenuCategory {
+  id    String @id @default(uuid())
+  name  String @unique
+}
+
+model MenuItem {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   // Linked to MenuCategory.name implicitly
+  price       Decimal
+  imageUrl    String?
+  isAvailable Boolean  @default(true)
+}
+
+model HousekeepingTask {
+  id            String    @id @default(uuid())
+  roomId        String?
+  room          Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  area          String?
+  staffId       String?
+  staff         Staff?    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  status        String    @default("PENDING") // ASSIGNED, IN_PROGRESS, COMPLETED, INSPECTED
+  priority      String    @default("Medium") // High, Medium, Low
+  taskType      String    @default("Cleaning")
+  estimatedTime Int       @default(30) // Minutes
+  scheduledDate DateTime?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  inspectedAt   DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([scheduledDate])
+  @@index([status, scheduledDate])
+}
+
+model RoomMaintenance {
+  id          String @id @default(uuid())
+  roomId      String
+  room        Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  description String
+  status      String
+}
+
+model Feedback {
+  id        String  @id @default(uuid())
+  bookingId String  @unique
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   @default("System") // Booking, Check-in, Check-out, Room Ready, Food Order, Feedback, System
+  title       String   @default("Notification")
+  message     String
+  referenceId String?  
+  metadata    Json?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking     Boolean  @default(true)
+  checkIn     Boolean  @default(true)
+  checkOut    Boolean  @default(true)
+  roomReady   Boolean  @default(true)
+  foodOrder   Boolean  @default(true)
+  feedback    Boolean  @default(true)
+  system      Boolean  @default(true)
+  payment     Boolean  @default(true)
+  maintenance Boolean  @default(true)
+  staff       Boolean  @default(true)
+  emergency   Boolean  @default(true)
+  email       Boolean  @default(true)
+  sms         Boolean  @default(false)
+  desktop     Boolean  @default(true)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  module    String   @default("General")
+  details   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([module])
+  @@index([module, createdAt])
+}
+
+model HotelSettings {
+  id                   String  @id @default(uuid())
+  name                 String
+  taxRate              Decimal
+  currency             String
+  defaultCheckIn       String
+  defaultCheckOut      String
+  loginBackgroundImage String?
+}
+
+model Setting {
+  key      String @id
+  category String
+  value    Json
+}

@@ -1,0 +1,232 @@
+import { asyncHandler } from '../utils/asyncHandler';
+import { Request, Response } from 'express';
+import prisma from '../prisma';
+import { emitToHotel } from '../socket';
+import { notifyRoles } from '../services/notificationService';
+import { getPagination, buildMeta } from '../utils/pagination';
+
+export const getOrders = asyncHandler(async (req: Request, res: Response) => {
+    const { limit, page, search, status, startDate, endDate } = req.query as any;
+
+    const { skip, take, page: pageNumber } = getPagination(page, limit, 50, 500);
+
+    const where: any = {};
+    if (status) where.status = status;
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        const sd = new Date(startDate as string); sd.setHours(0, 0, 0, 0);
+        where.createdAt.gte = sd;
+      }
+      if (endDate) {
+        const ed = new Date(endDate as string); ed.setHours(23, 59, 59, 999);
+        where.createdAt.lte = ed;
+      }
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      const s = search.trim();
+      where.OR = [
+        { booking: { guest: { name: { contains: s } } } },
+        { booking: { room:  { number: { contains: s } } } },
+        { orderNumber: { contains: s } },
+      ];
+    }
+
+    const [orders, total] = await Promise.all([
+      prisma.foodOrder.findMany({
+        where,
+        include: {
+          booking: { include: { guest: true, room: true } },
+          items: true
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      prisma.foodOrder.count({ where }),
+    ]);
+
+    res.json({ data: orders, meta: buildMeta(total, pageNumber, take) });
+  });
+
+export const createOrder = asyncHandler(async (req: Request, res: Response) => {
+    const { roomNumber, items, notes } = req.body;
+
+    if (!roomNumber || !items || !items.length) {
+      return res.status(400).json({ message: 'roomNumber and items are required' });
+    }
+
+    // Find the active booking for this room
+    const room = await prisma.room.findUnique({ where: { number: String(roomNumber) } });
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+
+    const booking = await prisma.booking.findFirst({
+      where: {
+        roomId: room.id,
+        status: 'CHECKED_IN'
+      }
+    });
+
+    if (!booking) {
+      return res.status(400).json({ message: 'No active CHECKED_IN booking found for this room' });
+    }
+
+    let totalAmount = 0;
+    const orderItemsData = items.map((item: any) => {
+      const price = parseFloat(item.price);
+      const quantity = parseInt(item.quantity, 10);
+      totalAmount += price * quantity;
+      return {
+        itemName: item.name,
+        quantity,
+        price
+      };
+    });
+
+    const order = await prisma.foodOrder.create({
+      data: {
+        bookingId: booking.id,
+        status: 'Pending',
+        notes: notes || null,
+        totalAmount,
+        items: {
+          create: orderItemsData
+        }
+      },
+      include: {
+        booking: {
+          include: { guest: true, room: true }
+        },
+        items: true
+      }
+    });
+
+    emitToHotel('main', 'order:created', order);
+
+    await notifyRoles(
+      ['Admin', 'Manager', 'Restaurant'],
+      'Food Order',
+      'New food order',
+      `A new food order has been placed for Room ${room.number}.`,
+      order.id,
+      {
+        "Order Number": order.orderNumber,
+        "Booking ID": order.booking.id.substring(0, 13).toUpperCase(),
+        "Guest Name": order.booking.guest.name,
+        "Room Number": room.number,
+        "Total Amount": `Rs. ${totalAmount}`,
+        "Items Count": items.length.toString(),
+        "Created At": new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      }
+    );
+
+    res.status(201).json(order);
+  });
+
+export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['Pending', 'Preparing', 'Ready', 'Served'];
+    if (!validStatuses.includes(String(status))) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const data: any = { status };
+    if (status === 'Preparing') data.preparingAt = new Date();
+    if (status === 'Ready') data.readyAt = new Date();
+    if (status === 'Served') data.servedAt = new Date();
+    if (status === 'Pending') data.acceptedAt = new Date();
+
+    const order = await prisma.foodOrder.update({
+      where: { id: String(id) },
+      data,
+      include: {
+        booking: { include: { guest: true, room: true } },
+        items: true
+      }
+    });
+
+    emitToHotel('main', 'order:status_changed', { orderId: order.id, status: order.status, order });
+
+    res.json(order);
+  });
+
+export const getMenuItems = asyncHandler(async (req: Request, res: Response) => {
+    const items = await prisma.menuItem.findMany({
+      orderBy: { category: 'asc' }
+    });
+    res.json(items);
+  });
+
+export const verifyGuest = asyncHandler(async (req: Request, res: Response) => {
+    const { roomNumber, lastName } = req.body;
+    
+    // Find active booking for this room
+    const room = await prisma.room.findUnique({
+      where: { number: roomNumber },
+      include: {
+        bookings: {
+          where: { status: 'CHECKED_IN' },
+          include: { guest: true }
+        }
+      }
+    });
+
+    if (!room || room.bookings.length === 0) {
+      return res.status(404).json({ message: 'No active booking found for this room' });
+    }
+
+    const activeBooking = room.bookings[0];
+    const guestName = activeBooking.guest.name.toLowerCase();
+
+    if (guestName.includes(lastName.toLowerCase())) {
+      res.json({ verified: true, guest: activeBooking.guest, bookingId: activeBooking.id });
+    } else {
+      res.status(401).json({ message: 'Name does not match the active booking' });
+    }
+  });
+
+export const createMenuItem = asyncHandler(async (req: Request, res: Response) => {
+    const { name, category, price, imageUrl } = req.body;
+    const item = await prisma.menuItem.create({
+      data: { name, category, price: Number(price), imageUrl }
+    });
+    res.status(201).json(item);
+  });
+
+export const updateMenuItem = asyncHandler(async (req: Request, res: Response) => {
+    const { name, category, price, imageUrl } = req.body;
+    const item = await prisma.menuItem.update({
+      where: { id: String(req.params.id) },
+      data: { name, category, price: Number(price), imageUrl }
+    });
+    res.json(item);
+  });
+
+export const deleteMenuItem = asyncHandler(async (req: Request, res: Response) => {
+    await prisma.menuItem.delete({ where: { id: String(req.params.id) } });
+    res.json({ message: 'Menu item deleted' });
+  });
+
+export const getCategories = asyncHandler(async (req: Request, res: Response) => {
+    const categories = await prisma.menuCategory.findMany({
+      orderBy: { name: 'asc' }
+    });
+    res.json(categories);
+  });
+
+export const createCategory = asyncHandler(async (req: Request, res: Response) => {
+    const { name } = req.body;
+    const category = await prisma.menuCategory.create({
+      data: { name }
+    });
+    res.status(201).json(category);
+  });
+
+export const deleteCategory = asyncHandler(async (req: Request, res: Response) => {
+    await prisma.menuCategory.delete({ where: { id: String(req.params.id) } });
+    res.json({ message: 'Category deleted' });
+  });

@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Theme (Premium) */
+    --theme-main: 220 33% 98%; /* Softer, cooler off-white background #F8F9FB */
+    --theme-card: 0 0% 100%; /* Pure white cards #FFFFFF */
+    --theme-secondary: 210 24% 95%; /* Subtle grey for secondary areas #F0F4F8 */
+    
+    --theme-border: 214 32% 88%; /* Slightly darker border for better contrast */
+    --theme-strong: 214 32% 75%; /* Stronger accents */
+    --theme-hover: 210 40% 96%; /* Noticeable hover state */
+    
+    --theme-text: 228 47% 18%; /* Deep navy text for premium feel */
+    --theme-muted: 220 20% 55%; /* Better contrast for muted text */
+    --theme-muted-light: 220 20% 70%;
+    --theme-inverse: 0 0% 100%;
+
+    /* Standard Tailwind config variables */
+    --background: 222 47% 98%; 
+    --foreground: 228 47% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 228 47% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 47% 20%;
+    --primary: 251 100% 55%; /* #4318FF */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 228 47% 20%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 225 19% 65%;
+    --accent: 251 100% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 251 100% 55%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    /* Dark Theme (Exactly matching current hardcoded hex codes) */
+    --theme-main: 222 25% 8%; /* #0F1219 */
+    --theme-card: 226 20% 13%; /* #1A1D27 */
+    --theme-secondary: 228 25% 12%; /* #161925 */
+    
+    --theme-border: 225 17% 19%; /* #262A36 */
+    --theme-strong: 225 13% 24%; /* #363A46 */
+    --theme-hover: 225 17% 19%; /* #262A36 */
+    
+    --theme-text: 0 0% 100%; /* #ffffff */
+    --theme-muted: 215 20% 65%; /* text-slate-400 */
+    --theme-muted-light: 214 32% 80%; /* text-slate-300 */
+    --theme-inverse: 222 25% 8%;
+
+    /* Standard Tailwind config variables */
+    --background: 220 48% 8%; 
+    --foreground: 210 40% 98%;
+    --card: 215 28% 17%; 
+    --card-foreground: 210 40% 98%;
+    --popover: 215 28% 17%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 221 83% 53%; 
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 24% 27%; 
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 24% 27%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 221 83% 53%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 24% 27%;
+    --input: 217 24% 27%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ── Print: hide sidebar, topbar, buttons — only report content ── */
+@media print {
+  aside,
+  header {
+    display: none !important;
+  }
+  .print-hide {
+    display: none !important;
+  }
+  main {
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  main > div {
+    padding: 8px !important;
+    overflow: visible !important;
+  }
+  body,
+  html {
+    background: #fff !important;
+    color: #111 !important;
+  }
+}

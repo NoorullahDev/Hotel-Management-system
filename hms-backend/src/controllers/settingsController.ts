@@ -1,0 +1,447 @@
+import { asyncHandler } from '../utils/asyncHandler';
+import { Request, Response } from 'express';
+import prisma from '../prisma';
+import bcrypt from 'bcrypt';
+import { emitToHotel } from '../socket';
+import { getPublicSettingsData, invalidateTaxCache } from '../utils/settings';
+import { AuthRequest } from '../middleware/authMiddleware';
+
+// ── Public Settings (Login page, guest-facing) ──────────────────────────────
+
+/**
+ * BEFORE: 4 separate DB queries (3 category-filtered + 1 legacy).
+ * AFTER:  2 queries (all settings + legacy fallback) via shared utility.
+ */
+export const getPublicSettings = asyncHandler(async (req: Request, res: Response) => {
+    const settings = await getPublicSettingsData();
+    res.json(settings);
+  });
+
+// ── Get All Settings (grouped by category) ──────────────────────────────────
+
+export const getAllSettings = asyncHandler(async (req: Request, res: Response) => {
+    // Single query — group in memory (settings table is tiny)
+    const [settings, legacy] = await Promise.all([
+      prisma.setting.findMany(),
+      prisma.hotelSettings.findFirst(),
+    ]);
+
+    const parseVal = (val: unknown): unknown => {
+      if (typeof val === 'string') {
+        try { return JSON.parse(val); } catch { return val; }
+      }
+      return val;
+    };
+
+    const grouped: Record<string, Record<string, unknown>> = {};
+    for (const s of settings) {
+      if (!grouped[s.category]) grouped[s.category] = {};
+      grouped[s.category][s.key] = parseVal(s.value);
+    }
+
+    if (legacy) {
+      grouped.general  ??= {};
+      grouped.hotel    ??= {};
+      grouped.tax      ??= {};
+      grouped.general.hotelName    ??= legacy.name;
+      grouped.hotel.currency       ??= legacy.currency;
+      grouped.hotel.checkInTime    ??= legacy.defaultCheckIn;
+      grouped.hotel.checkOutTime   ??= legacy.defaultCheckOut;
+      grouped.tax.rate             ??= legacy.taxRate.toString();
+    }
+
+    res.json(grouped);
+  });
+
+// ── Update Settings ─────────────────────────────────────────────────────────
+
+export const updateSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { category, updates } = req.body as { category: string; updates: Record<string, unknown> };
+
+    if (!category || !updates || typeof updates !== 'object') {
+      return res.status(400).json({ message: 'Invalid payload' });
+    }
+
+    // Batch upserts sequentially (SQLite doesn't support parallel writes)
+    for (const [key, value] of Object.entries(updates)) {
+      const safeValue = (typeof value === 'object' && value !== null) ? value : JSON.stringify(value);
+      await prisma.setting.upsert({
+        where:  { key },
+        update: { category, value: safeValue as any },
+        create: { key, category, value: safeValue as any },
+      });
+    }
+
+    // Invalidate the tax cache whenever tax settings change
+    if (category === 'tax') invalidateTaxCache();
+
+    await prisma.auditLog.create({
+      data: {
+        userId:  req.user!.userId,
+        action:  'UPDATE_SETTINGS',
+        module:  'Settings',
+        details: `Updated settings for category: ${category}`,
+      },
+    });
+
+    emitToHotel('main', 'settings:updated', { category, updates });
+
+    res.json({ message: 'Settings updated successfully' });
+  });
+
+// ── Account Settings ────────────────────────────────────────────────────────
+
+export const getAccountSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, phone: true, profilePhoto: true, role: true },
+    });
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  });
+
+export const updateAccountSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const { name, phone, profilePhoto } = req.body as { name: string; phone?: string; profilePhoto?: string };
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { name, phone, profilePhoto },
+      select: { id: true, name: true, email: true, phone: true, profilePhoto: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action:  'UPDATE_PROFILE',
+        module:  'Settings',
+        details: 'Updated account profile details',
+      },
+    });
+
+    res.json(user);
+  });
+
+// ── Change Password ─────────────────────────────────────────────────────────
+
+export const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) return res.status(400).json({ message: 'Incorrect current password' });
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action:  'CHANGE_PASSWORD',
+        module:  'Settings',
+        details: 'Changed account password',
+      },
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  });
+
+// ── Change Email ────────────────────────────────────────────────────────────
+
+export const changeEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const { newEmail } = req.body as { newEmail: string };
+
+    if (!newEmail) {
+      return res.status(400).json({ message: 'New email is required' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
+    if (existingUser && existingUser.id !== userId) {
+      return res.status(400).json({ message: 'Email is already in use by another account' });
+    }
+
+    const user = await prisma.user.update({ where: { id: userId }, data: { email: newEmail } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action:  'UPDATE_PROFILE',
+        module:  'Settings',
+        details: `Changed account email to ${newEmail}`,
+      },
+    });
+
+    res.json({ message: 'Email changed successfully', email: user.email });
+  });
+
+// ── Shared backup data collector ─────────────────────────────────────────────
+
+/**
+ * Collect all tables needed for a backup in parallel.
+ * @param includeSecrets  When true, includes passwordHash and lockedUntil (for file download only).
+ */
+async function collectBackupData(includeSecrets = false) {
+  const userSelect = includeSecrets
+    ? undefined  // select everything
+    : { id: true, email: true, name: true, phone: true, profilePhoto: true, roleId: true, oauthProvider: true, failedLoginAttempts: true };
+
+  const [
+    roles, users, guests, roomTypes, rooms, bookings, payments,
+    invoices, invoiceItems, foodOrders, orderItems, menuCategories,
+    menuItems, housekeepingTasks, roomMaintenances, feedbacks,
+    notifications, notificationPreferences, auditLogs, hotelSettings, settings, staff,
+  ] = await Promise.all([
+    prisma.role.findMany(),
+    prisma.user.findMany(userSelect ? { select: userSelect } : undefined),
+    prisma.guest.findMany(),
+    prisma.roomType.findMany(),
+    prisma.room.findMany(),
+    prisma.booking.findMany(),
+    prisma.payment.findMany(),
+    prisma.invoice.findMany(),
+    prisma.invoiceItem.findMany(),
+    prisma.foodOrder.findMany(),
+    prisma.orderItem.findMany(),
+    prisma.menuCategory.findMany(),
+    prisma.menuItem.findMany(),
+    prisma.housekeepingTask.findMany(),
+    prisma.roomMaintenance.findMany(),
+    prisma.feedback.findMany(),
+    prisma.notification.findMany(),
+    prisma.notificationPreference.findMany(),
+    prisma.auditLog.findMany(),
+    prisma.hotelSettings.findMany(),
+    prisma.setting.findMany(),
+    prisma.staff.findMany(),
+  ]);
+
+  return {
+    roles, users, guests, roomTypes, rooms, bookings, payments,
+    invoices, invoiceItems, foodOrders, orderItems, menuCategories,
+    menuItems, housekeepingTasks, roomMaintenances, feedbacks,
+    notifications, notificationPreferences, auditLogs,
+    hotelSettings, settings, staff,
+  };
+}
+
+// ── Backup Database (JSON preview) ───────────────────────────────────────────
+
+export const backupDatabase = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const data = await collectBackupData(false);
+
+    const backup = {
+      version:   '1.0',
+      createdAt: new Date().toISOString(),
+      data,
+    };
+
+    await Promise.all([
+      prisma.setting.upsert({
+        where:  { key: 'lastBackupAt' },
+        update: { value: new Date().toISOString() as any },
+        create: { key: 'lastBackupAt', category: 'system', value: new Date().toISOString() as any },
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId:  req.user!.userId,
+          action:  'DATABASE_BACKUP',
+          module:  'Settings',
+          details: 'Created database backup',
+        },
+      }),
+    ]);
+
+    res.json(backup);
+  });
+
+import AdmZip from 'adm-zip';
+import path from 'path';
+import fs from 'fs';
+
+import { generateSqlDump } from '../utils/sqlDump';
+
+// ── Download Backup as File ─────────────────────────────────────────────────
+
+export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // includeSecrets=true to fetch passwordHash + lockedUntil for a complete restore
+    const backupData = await collectBackupData(true);
+
+    // Create a new ZIP archive
+    const zip = new AdmZip();
+    let reportLog = 'Backup Verification Report\n===========================\n\n';
+    let missingFiles = 0;
+
+    const uploadsDir = path.join(__dirname, '../../uploads');
+
+    // Helper to validate and add file
+    const processImageField = (obj: any, fieldName: string, entityName: string) => {
+      const filePath = obj[fieldName];
+      if (!filePath) return;
+
+      const fullPath = path.join(uploadsDir, filePath.replace('/uploads/', ''));
+      let isValid = false;
+
+      if (fs.existsSync(fullPath)) {
+        const stats = fs.statSync(fullPath);
+        if (stats.isFile() && stats.size > 100) { // Valid file, larger than 100 bytes
+          try {
+            zip.addLocalFile(fullPath, 'uploads');
+            isValid = true;
+          } catch (err) {
+            console.error(`Failed to zip file: ${fullPath}`, err);
+          }
+        }
+      }
+      if (!isValid) missingFiles++;
+    };
+
+    // Process image references in the database
+    backupData.users.forEach((u: any) => processImageField(u, 'profilePhoto', 'User'));
+    backupData.menuItems.forEach((m: any) => processImageField(m, 'imageUrl', 'MenuItem'));
+    backupData.rooms.forEach((r: any) => processImageField(r, 'imageUrl', 'Room'));
+    backupData.hotelSettings.forEach((hs: any) => processImageField(hs, 'loginBackgroundImage', 'HotelSettings'));
+    
+    // Process settings that contain images
+    const logoSetting = backupData.settings?.find((s: any) => s.key === 'hotelLogo');
+    if (logoSetting && logoSetting.value) {
+      processImageField(logoSetting, 'value', 'HotelLogo Setting');
+    }
+    const bannerSetting = backupData.settings?.find((s: any) => s.key === 'hotelBanner');
+    if (bannerSetting && bannerSetting.value) {
+      processImageField(bannerSetting, 'value', 'HotelBanner Setting');
+    }
+
+    if (missingFiles === 0) {
+      reportLog += 'All file references are valid and successfully backed up.\n';
+    } else {
+      reportLog += `\nTotal missing/corrupted files stripped: ${missingFiles}\n`;
+    }
+
+    // Add report to zip
+    zip.addFile('backup-report.txt', Buffer.from(reportLog, 'utf8'));
+
+    // Generate SQL string from the validated/cleaned data
+    const sqlScript = generateSqlDump(backupData);
+    
+    // Add SQL dump to zip
+    zip.addFile('database.sql', Buffer.from(sqlScript, 'utf8'));
+
+    const zipBuffer = zip.toBuffer();
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const hourStr = now.getHours().toString().padStart(2, '0');
+    const minStr = now.getMinutes().toString().padStart(2, '0');
+    const filename = `HMS_Backup_${dateStr}_${hourStr}-${minStr}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(zipBuffer);
+  });
+
+// ── Restore Database ────────────────────────────────────────────────────────
+
+export const restoreDatabase = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No backup file provided' });
+    }
+
+    const zipPath = req.file.path;
+    const zip = new AdmZip(zipPath);
+    const zipEntries = zip.getEntries();
+
+    const dbEntry = zipEntries.find(entry => entry.entryName === 'database.sql');
+    if (!dbEntry) {
+      fs.unlinkSync(zipPath); // clean up
+      return res.status(400).json({ message: 'Invalid backup: missing database.sql' });
+    }
+
+    const sqlScript = dbEntry.getData().toString('utf8');
+
+    // Parse SQL statements properly — handle semicolons inside quoted strings
+    const statements: string[] = [];
+    let current = '';
+    let inString = false;
+    let stringChar = '';
+    
+    for (let i = 0; i < sqlScript.length; i++) {
+      const ch = sqlScript[i];
+      
+      if (inString) {
+        current += ch;
+        // Check for escaped quote (doubled quote like '')
+        if (ch === stringChar) {
+          if (i + 1 < sqlScript.length && sqlScript[i + 1] === stringChar) {
+            current += sqlScript[i + 1];
+            i++; // skip the escaped quote
+          } else {
+            inString = false;
+          }
+        }
+      } else {
+        if (ch === "'" || ch === '"') {
+          inString = true;
+          stringChar = ch;
+          current += ch;
+        } else if (ch === ';') {
+          const trimmed = current.trim();
+          if (trimmed.length > 0 && !trimmed.startsWith('--')) {
+            statements.push(trimmed);
+          }
+          current = '';
+        } else if (ch === '-' && i + 1 < sqlScript.length && sqlScript[i + 1] === '-') {
+          // Skip comment line
+          const newlineIdx = sqlScript.indexOf('\n', i);
+          if (newlineIdx === -1) break;
+          i = newlineIdx;
+        } else {
+          current += ch;
+        }
+      }
+    }
+    // Don't forget the last statement if there's no trailing semicolon
+    const lastTrimmed = current.trim();
+    if (lastTrimmed.length > 0 && !lastTrimmed.startsWith('--')) {
+      statements.push(lastTrimmed);
+    }
+
+    // Execute all statements using Prisma $executeRawUnsafe
+    // Disable foreign keys, run all deletes and inserts, then re-enable
+    await prisma.$executeRawUnsafe('PRAGMA foreign_keys = OFF');
+
+    try {
+      for (const stmt of statements) {
+        try {
+          await prisma.$executeRawUnsafe(stmt);
+        } catch (err) {
+          console.error(`Failed to execute statement: ${stmt}`, err);
+        }
+      }
+    } finally {
+      await prisma.$executeRawUnsafe('PRAGMA foreign_keys = ON');
+    }
+
+    res.json({ message: 'Database restored successfully' });
+  });
+
+// ── Get Last Backup Info ────────────────────────────────────────────────────
+
+export const getBackupInfo = asyncHandler(async (req: Request, res: Response) => {
+    const lastBackup = await prisma.setting.findUnique({
+      where: { key: 'lastBackupAt' }
+    });
+
+    res.json({
+      lastBackupAt: lastBackup?.value || null
+    });
+  });

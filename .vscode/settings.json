@@ -1,0 +1,15 @@
+{
+  // Tell VS Code's CSS validator to ignore unknown Tailwind at-rules
+  // (@tailwind, @apply, @layer) — these are processed by PostCSS, not plain CSS
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+
+  // Use Tailwind CSS IntelliSense for the CSS language features instead
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+
+  // Suppress the specific unknown at-rule warnings for Tailwind directives
+  "css.lint.unknownAtRules": "ignore"
+}

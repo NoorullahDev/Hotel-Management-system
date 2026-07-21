@@ -1,0 +1,24 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: '.',
+  testMatch: '**/*.spec.ts',
+  timeout: 120_000,           // 2 minutes per test
+  retries: 0,
+  use: {
+    baseURL: 'http://localhost:3000',
+    headless: true,
+    screenshot: 'only-on-failure',
+    trace: 'on-first-retry',
+    actionTimeout: 15_000,
+  },
+  expect: {
+    timeout: 10_000,
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium' },
+    },
+  ],
+});

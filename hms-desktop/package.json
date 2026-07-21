@@ -1,0 +1,61 @@
+{
+  "name": "hotel-management-system",
+  "version": "1.0.0",
+  "description": "Hotel Management System - Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:all": "electron-builder --win --mac --linux"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.hotel.management",
+    "productName": "Hotel Management System",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../hms-backend",
+        "to": "hms-backend",
+        "filter": [
+          "**/*",
+          "!node_modules/**",
+          "!*.ts"
+        ]
+      },
+      {
+        "from": "../hms-frontend",
+        "to": "hms-frontend",
+        "filter": [
+          "**/*",
+          "!node_modules/**",
+          "!*.ts"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "icon.png"
+    }
+  }
+}

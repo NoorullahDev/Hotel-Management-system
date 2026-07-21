@@ -1,0 +1,444 @@
+import { asyncHandler } from '../utils/asyncHandler';
+import { Request, Response } from 'express';
+import prisma from '../prisma';
+import { createBookingService, checkInBookingService } from '../services/booking.service';
+import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
+import { getPagination, buildMeta } from '../utils/pagination';
+
+export const getBookings = asyncHandler(async (req: Request, res: Response) => {
+    const {
+      limit: limitStr,
+      page,
+      sort,
+      bookingType,
+      status,
+      search,
+      startDate,
+      endDate,
+    } = req.query;
+    const { skip, take: limit, page: pageNumber } = getPagination(page, limitStr, 50, 500);
+    const orderDir = sort === 'asc' ? 'asc' : 'desc';
+
+    const where: any = {};
+    if (bookingType) where.bookingType = bookingType;
+    if (status)      where.status      = status;
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        const sd = new Date(startDate as string); sd.setHours(0, 0, 0, 0);
+        where.createdAt.gte = sd;
+      }
+      if (endDate) {
+        const ed = new Date(endDate as string); ed.setHours(23, 59, 59, 999);
+        where.createdAt.lte = ed;
+      }
+    }
+
+    if (search && typeof search === 'string' && search.trim()) {
+      const s = search.trim();
+      where.OR = [
+        { guest: { name: { contains: s } } },
+        { room:  { number: { contains: s } } },
+        { id:    { contains: s } },
+      ];
+    }
+
+    const [bookings, total, statGroups] = await Promise.all([
+      prisma.booking.findMany({
+        where,
+        take: limit,
+        skip,
+        orderBy: { createdAt: orderDir },
+        include: {
+          guest: true,
+          room: { include: { roomType: true } },
+        }
+      }),
+      prisma.booking.count({ where }),
+      prisma.booking.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+        _sum: { total: true }
+      })
+    ]);
+
+    const settings = await getPublicSettingsData();
+
+    let totalRev = 0;
+    let paid = 0;
+    let pendingPay = 0;
+    let invoices = 0;
+
+    statGroups.forEach(g => {
+      const amt = g._sum.total ? g._sum.total.toNumber() : 0;
+      const count = g._count._all;
+      if (g.status === 'CHECKED_OUT') {
+        totalRev += amt;
+        paid += amt;
+        invoices += count;
+      } else if (g.status === 'CHECKED_IN') {
+        totalRev += amt;
+        pendingPay += amt;
+        invoices += count;
+      }
+    });
+
+    const stats = {
+      totalRevenue: totalRev,
+      pendingPayments: pendingPay,
+      outstandingBalance: pendingPay,
+      totalInvoices: invoices,
+      paidBills: paid
+    };
+
+    const formattedBookings = bookings.map(b => {
+      const checkInStr  = b.checkIn.toLocaleDateString('en-US',  { month: 'short', day: 'numeric', year: 'numeric' });
+      const checkOutStr = b.checkOut.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return {
+        id:          b.id.substring(0, 13).toUpperCase(),
+        rawId:       b.id,
+        room:        b.room.number,
+        roomType:    b.room.roomType.name,
+        guest:       b.guest.name,
+        guestPhone:  b.guest.phone,
+        guestEmail:  b.guest.email,
+        guestType:   b.guest.guestType,
+        bookingType: b.bookingType,
+        dates:       `${checkInStr} - ${checkOutStr}`,
+        days:        Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / (1000 * 60 * 60 * 24))),
+        checkIn:     b.checkIn,
+        checkOut:    b.checkOut,
+        createdAt:   b.createdAt,
+        status:      b.status,
+        amount:      `${settings.currencySymbol} ${b.total.toNumber().toLocaleString()}`,
+        rawAmount:   b.total.toNumber(),
+      };
+    });
+
+    res.json({
+      data: formattedBookings,
+      meta: buildMeta(total, pageNumber, limit),
+      stats
+    });
+  });
+
+
+export const createBooking = asyncHandler(async (req: Request, res: Response) => {
+    const { guest, bookingType, arrivalTime, additionalGuests, roomId, checkIn, checkOut, guestCount, subtotal, tax, total, paymentMethod } = req.body;
+    
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+
+    // Upsert guest based on id, or email, or create
+    let dbGuest;
+    if (guest.id) {
+      dbGuest = await prisma.guest.update({
+        where: { id: guest.id },
+        data: {
+          guestType: guest.guestType,
+          name: guest.name,
+          phone: guest.phone,
+          idType: guest.idType,
+          idNumber: guest.idNumber,
+          nationality: guest.nationality,
+          city: guest.city,
+          country: guest.country
+        }
+      });
+    } else if (guest.email && guest.email.trim() !== '') {
+      dbGuest = await prisma.guest.upsert({
+        where: { email: guest.email },
+        update: {
+          guestType: guest.guestType,
+          name: guest.name,
+          phone: guest.phone,
+          idType: guest.idType,
+          idNumber: guest.idNumber,
+          nationality: guest.nationality,
+          city: guest.city,
+          country: guest.country
+        },
+        create: {
+          guestType: guest.guestType || (bookingType === 'FOREIGN' ? 'FOREIGN' : 'LOCAL'),
+          name: guest.name,
+          email: guest.email,
+          phone: guest.phone,
+          idType: guest.idType,
+          idNumber: guest.idNumber,
+          nationality: guest.nationality,
+          city: guest.city,
+          country: guest.country
+        }
+      });
+    } else {
+      dbGuest = await prisma.guest.create({
+        data: {
+          guestType: guest.guestType || (bookingType === 'FOREIGN' ? 'FOREIGN' : 'LOCAL'),
+          name: guest.name,
+          phone: guest.phone,
+          idType: guest.idType,
+          idNumber: guest.idNumber,
+          nationality: guest.nationality,
+          city: guest.city,
+          country: guest.country
+        }
+      });
+    }
+
+    // Create booking. This will trigger the PostgreSQL exclusion constraint if there's an overlap.
+    const newBooking = await createBookingService({
+      bookingType: bookingType || 'LOCAL',
+      guestId: dbGuest.id,
+      roomId,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+      arrivalTime: arrivalTime ? new Date(arrivalTime) : undefined,
+      guestCount: parseInt(guestCount) || 1,
+      additionalGuests: additionalGuests || null,
+      subtotal,
+      tax,
+      total,
+      status: 'CONFIRMED',
+      payments: {
+        create: {
+          amount: total,
+          method: paymentMethod || 'Credit Card'
+        }
+      }
+    });
+
+    res.status(201).json(newBooking);
+  });
+
+export const getBookingById = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        guest: {
+          include: {
+            bookings: {
+              include: { room: { include: { roomType: true } } },
+              orderBy: { checkIn: 'desc' }
+            }
+          }
+        },
+        room: { include: { roomType: true } },
+        payments: true
+      }
+    });
+
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    res.json(booking);
+  });
+
+export const updateBooking = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const { status, guestCount, checkIn, checkOut, roomId, arrivalTime } = req.body;
+
+    const dataToUpdate: any = {};
+    if (status) dataToUpdate.status = status;
+    if (guestCount) dataToUpdate.guestCount = guestCount;
+    if (checkIn) dataToUpdate.checkIn = new Date(checkIn);
+    if (checkOut) dataToUpdate.checkOut = new Date(checkOut);
+    if (roomId) dataToUpdate.roomId = roomId;
+    if (arrivalTime) dataToUpdate.arrivalTime = new Date(arrivalTime);
+
+    const booking = await prisma.booking.update({
+      where: { id },
+      data: dataToUpdate
+    });
+
+    res.json(booking);
+  });
+
+export const cancelBooking = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const booking = await prisma.booking.update({
+      where: { id },
+      data: { status: 'CANCELLED' }
+    });
+    res.json(booking);
+  });
+
+export const deleteBooking = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    // The schema defines onDelete: Cascade on Payment, Invoice (→InvoiceItem),
+    // FoodOrder (→OrderItem), and Feedback relations, so a single delete
+    // removes all child records atomically via the DB engine.
+    const booking = await prisma.booking.delete({ where: { id } });
+    res.json(booking);
+  });
+
+export const checkInBooking = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const booking = await prisma.booking.findUnique({ where: { id } });
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // Transaction to update booking and room
+    const result = await checkInBookingService(id, booking.roomId);
+
+    res.json(result[0]);
+  });
+
+export const getFolio = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        room: { include: { roomType: true } },
+        guest: true,
+        payments: true,
+        foodOrders: { include: { items: true } }
+      }
+    });
+
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // Calculate nights
+    const checkInDate = new Date(booking.checkIn);
+    const checkOutDate = new Date(booking.checkOut);
+    const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+    // Room charges
+    const roomRate = booking.room.price.toNumber();
+    const totalRoomCharges = nights * roomRate;
+
+    // Food Orders
+    let totalFoodCharges = 0;
+    const foodItems = [];
+    for (const order of booking.foodOrders) {
+      for (const item of order.items) {
+        const itemTotal = item.quantity * item.price.toNumber();
+        totalFoodCharges += itemTotal;
+        foodItems.push({
+          description: `Restaurant (${item.itemName})`,
+          qty: item.quantity,
+          rate: item.price.toNumber(),
+          amount: itemTotal
+        });
+      }
+    }
+
+    // Standard items list
+    const items = [
+      {
+        description: `Room Charges (${booking.room.roomType.name})`,
+        qty: nights,
+        rate: roomRate,
+        amount: totalRoomCharges
+      },
+      ...foodItems
+    ];
+
+    const subTotal = totalRoomCharges + totalFoodCharges;
+
+    // Tax settings (single call — result is cached)
+    const tax = await getTaxSettings();
+    const taxRate = tax.rate;
+    const taxAmount = subTotal * taxRate;
+    
+    // Check if an invoice already exists with a saved discount
+    const existingInvoice = await prisma.invoice.findUnique({
+      where: { bookingId: id },
+      include: { items: true }
+    });
+
+    // We can allow discount to be passed via query for preview, or fetch from DB if invoice exists.
+    let discount = 0;
+    if (existingInvoice) {
+       const discountItem = existingInvoice.items.find(i => i.description === 'Discount');
+       if (discountItem) {
+         discount = Math.abs(discountItem.amount.toNumber());
+       }
+    }
+
+    const totalAmount = subTotal + taxAmount - discount;
+    const paidAmount = booking.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0);
+    const balanceDue = totalAmount - paidAmount;
+
+    res.json({
+      bookingId: booking.id,
+      guestName: booking.guest.name,
+      roomNumber: booking.room.number,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      status: booking.status,
+      items,
+      subTotal,
+      taxAmount,
+      discount,
+      totalAmount,
+      paidAmount,
+      balanceDue,
+      payments: booking.payments,
+      hasInvoice: !!existingInvoice
+    });
+
+  });
+
+export const checkoutBooking = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const { discount } = req.body;
+    
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: {
+        room: { include: { roomType: true } },
+        foodOrders: { include: { items: true } }
+      }
+    });
+
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    // If invoice exists, don't recreate it
+    let invoice = await prisma.invoice.findUnique({ where: { bookingId: id } });
+    
+    if (!invoice) {
+      // Calculate charges
+      const checkInDate = new Date(booking.checkIn);
+      const checkOutDate = new Date(booking.checkOut);
+      const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const roomRate = booking.room.price.toNumber();
+      
+      const invoiceItems = [];
+      invoiceItems.push({ description: `Room Charges (${booking.room.roomType.name})`, amount: nights * roomRate });
+      
+      for (const order of booking.foodOrders) {
+        for (const item of order.items) {
+          invoiceItems.push({ description: `Restaurant (${item.itemName} x${item.quantity})`, amount: item.quantity * item.price.toNumber() });
+        }
+      }
+
+      const subTotal = invoiceItems.reduce((sum, i) => sum + i.amount, 0);
+      
+      // Tax settings (single call — result is cached)
+      const tax = await getTaxSettings();
+      const taxRate = tax.rate;
+      const taxName = tax.name;
+      const taxPct  = tax.pct;
+
+      const taxAmount = subTotal * taxRate;
+      invoiceItems.push({ description: `${taxName} (${taxPct}%)`, amount: taxAmount });
+
+      if (discount && Number(discount) > 0) {
+        invoiceItems.push({ description: 'Discount', amount: -Number(discount) });
+      }
+
+      invoice = await prisma.invoice.create({
+        data: {
+          bookingId: id,
+          items: {
+            create: invoiceItems.map(item => ({
+              description: item.description,
+              amount: item.amount
+            }))
+          }
+        }
+      });
+    }
+
+    res.json(invoice);
+  });

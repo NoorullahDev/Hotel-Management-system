@@ -266,8 +266,14 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     
     doc.moveDown(0.5);
     drawDashedLine(doc);
-    
     doc.font('Helvetica').fontSize(8).text('Thank you for your stay!', { align: 'center' });
+    
+    // Add just a little bit of gap
+    doc.moveDown(1.2);
+    
+    doc.font('Helvetica').fontSize(7).fillColor('#000000')
+       .text('Software is developed by Eagle Nest Creation', { align: 'center' });
+    doc.text('Contact: 03405545150', { align: 'center' });
     
     doc.end();
 });

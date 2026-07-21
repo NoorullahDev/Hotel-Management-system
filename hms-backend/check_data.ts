@@ -1,25 +1,17 @@
-import 'dotenv/config';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+const adapter = new PrismaBetterSqlite3({
+  url: 'file:./dev.db.bak'
 });
-const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const rooms = await prisma.room.count();
-  const guests = await prisma.guest.count();
-  const bookings = await prisma.booking.count();
-  const menuItems = await prisma.menuItem.count();
-  
-  console.log(`Rooms: ${rooms}`);
-  console.log(`Guests: ${guests}`);
-  console.log(`Bookings: ${bookings}`);
-  console.log(`MenuItems: ${menuItems}`);
+  const bookings = await prisma.booking.findMany();
+  console.log('Total bookings in dev.db.bak:', bookings.length);
+  const guests = await prisma.guest.findMany();
+  console.log('Total guests in dev.db.bak:', guests.length);
+  const foreignGuests = await prisma.guest.findMany({ where: { guestType: 'FOREIGN' } });
+  console.log('Foreign guests in dev.db.bak:', foreignGuests.length);
 }
-
-main().catch(console.error).finally(() => prisma.$disconnect());
+main().finally(() => prisma.$disconnect());

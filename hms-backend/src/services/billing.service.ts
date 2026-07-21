@@ -12,7 +12,7 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
   const checkOutDate = new Date(booking.checkOut);
   const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86400000));
   
-  const invoiceItems: { description: string, qty?: number, rate?: Decimal, amount: Decimal }[] = [];
+  const invoiceItems: { description: string, qty?: number, rate?: Prisma.Decimal, amount: Prisma.Decimal }[] = [];
   
   const totalRoomCharges = booking.room.price.mul(nights);
   invoiceItems.push({ 
@@ -95,8 +95,8 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
       data: { bookingId, amount, method }
     });
 
-    const totalAmount = invoice.items.reduce((sum: Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
-    const paidAmount = [...booking.payments, payment].reduce((sum: Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
+    const totalAmount = invoice!.items.reduce((sum: Prisma.Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
+    const paidAmount = [...booking.payments, payment].reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
 
     let checkedOut = false;
     let updatedBooking = null;

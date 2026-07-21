@@ -138,7 +138,7 @@ export default function BillingPage() {
   const downloadPdf = () => {
     if (!folioData || !selectedBookingId) return;
     const token = localStorage.getItem('accessToken');
-    window.open(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}/api/invoices/${selectedBookingId}/pdf?token=${token}`, '_blank');
+    window.open(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}/api/invoices/${selectedBookingId}/pdf?token=${token}&t=${Date.now()}`, '_blank');
   };
 
   const filtered = useMemo(() => bookings.filter(b => {

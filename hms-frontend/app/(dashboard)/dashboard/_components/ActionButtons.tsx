@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Plus, LogIn, LogOut, FileText } from 'lucide-react';
 import Link from 'next/link';
-import NewBookingWizard from '../../booking/_components/NewBookingWizard';
+import NewBookingWizard from '@/components/wizard/NewBookingWizard';
 
 export default function ActionButtons() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);

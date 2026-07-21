@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import prisma from '../prisma';
 import bcrypt from 'bcrypt';
 import { emitToHotel } from '../socket';
-import { getPublicSettingsData, invalidateTaxCache } from '../utils/settings';
+import { getPublicSettingsData, invalidateTaxCache, invalidatePublicSettingsCache } from '../utils/settings';
 import { AuthRequest } from '../middleware/authMiddleware';
 
 // ── Public Settings (Login page, guest-facing) ──────────────────────────────
@@ -74,6 +74,9 @@ export const updateSettings = asyncHandler(async (req: AuthRequest, res: Respons
 
     // Invalidate the tax cache whenever tax settings change
     if (category === 'tax') invalidateTaxCache();
+    
+    // Always invalidate public settings cache on any settings update
+    invalidatePublicSettingsCache();
 
     await prisma.auditLog.create({
       data: {

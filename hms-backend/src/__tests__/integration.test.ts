@@ -128,8 +128,10 @@ describe('Full System Integration Test', () => {
       status: (code: number) => res
     } as unknown as Response;
 
-    await checkoutBooking(req, res, vi.fn() as any);
+    let capturedError: any;
+    await checkoutBooking(req, res, ((err: any) => { capturedError = err; }) as any);
     
+    expect(capturedError).toBeUndefined();
     expect(jsonResponse).toBeDefined();
     expect(jsonResponse.bookingId).toBe(bookingId);
 

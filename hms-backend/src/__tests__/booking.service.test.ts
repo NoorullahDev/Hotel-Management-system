@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock Prisma client
 const mockPrismaBookingCreate = vi.fn();
 const mockPrismaBookingFindUnique = vi.fn();
+const mockPrismaBookingFindFirst = vi.fn().mockResolvedValue(null);
 const mockPrismaBookingUpdate = vi.fn();
 const mockPrismaRoomUpdate = vi.fn();
 const mockPrismaHousekeepingCreate = vi.fn();
@@ -34,7 +35,38 @@ vi.mock('../prisma', () => ({
     housekeepingTask: {
       create: (...args: any[]) => mockPrismaHousekeepingCreate(...args),
     },
-    $transaction: (...args: any[]) => mockPrismaTransaction(...args),
+    setting: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    hotelSettings: {
+      findFirst: vi.fn().mockResolvedValue({ currency: 'USD' }),
+    },
+    $transaction: async (arg: any, options: any) => {
+      if (typeof arg === 'function') {
+        return arg({
+          booking: {
+            create: mockPrismaBookingCreate,
+            findUnique: mockPrismaBookingFindUnique,
+            update: mockPrismaBookingUpdate,
+            findFirst: mockPrismaBookingFindFirst,
+          },
+          room: {
+            update: mockPrismaRoomUpdate,
+          },
+          housekeepingTask: {
+            create: mockPrismaHousekeepingCreate,
+          },
+          invoice: {
+            findUnique: vi.fn(),
+            create: vi.fn(),
+          },
+          payment: {
+            create: vi.fn(),
+          }
+        });
+      }
+      return mockPrismaTransaction(arg);
+    },
   },
 }));
 
@@ -92,13 +124,15 @@ describe('booking.service — createBookingService', () => {
     const expectedResult = makeBookingResult();
     const roomResult = { id: 'room-1', status: 'RESERVED' };
 
-    // The service calls prisma.$transaction([booking.create(...), room.update(...)])
-    // so we mock $transaction to return [bookingResult, roomResult]
-    mockPrismaTransaction.mockResolvedValue([expectedResult, roomResult]);
+    // The service calls prisma.$transaction(async (tx) => ...)
+    // Our mock will execute the callback, calling mockPrismaBookingCreate and mockPrismaRoomUpdate
+    mockPrismaBookingCreate.mockResolvedValue(expectedResult);
+    mockPrismaRoomUpdate.mockResolvedValue(roomResult);
 
     const result = await createBookingService(bookingData);
 
-    expect(mockPrismaTransaction).toHaveBeenCalledOnce();
+    expect(mockPrismaBookingCreate).toHaveBeenCalledOnce();
+    expect(mockPrismaRoomUpdate).toHaveBeenCalledOnce();
     expect(result).toBe(expectedResult);
   });
 
@@ -110,18 +144,16 @@ describe('booking.service — createBookingService', () => {
       checkOut: new Date('2026-08-05'),
     };
 
-    const overlapError = new Error('overlapping_bookings');
-    (overlapError as any).code = 'P2004';
-    // $transaction itself should throw when the constraint is violated
-    mockPrismaTransaction.mockRejectedValue(overlapError);
+    mockPrismaBookingFindFirst.mockResolvedValue({ id: 'overlap-booking' });
 
     await expect(createBookingService(bookingData)).rejects.toThrow(
-      'overlapping_bookings'
+      'Room room-1 is already booked for an overlapping date range.'
     );
   });
 
   it('should propagate generic database errors', async () => {
-    mockPrismaTransaction.mockRejectedValue(new Error('Connection refused'));
+    mockPrismaBookingFindFirst.mockResolvedValue(null);
+    mockPrismaBookingCreate.mockRejectedValue(new Error('Connection refused'));
 
     await expect(
       createBookingService({ guestId: 'g', roomId: 'r' })
@@ -136,7 +168,7 @@ describe('booking.service — checkInBookingService', () => {
 
   it('should update booking to CHECKED_IN and room to OCCUPIED in a transaction', async () => {
     const txResult = [
-      { id: 'booking-1', status: 'CHECKED_IN' },
+      { id: 'booking-1', status: 'CHECKED_IN', guest: { name: 'John Doe' }, room: { number: '101' }, checkIn: new Date(), checkOut: new Date(), total: { toNumber: () => 100 } },
       { id: 'room-1', status: 'OCCUPIED' },
     ];
     mockPrismaTransaction.mockResolvedValue(txResult);
@@ -150,7 +182,7 @@ describe('booking.service — checkInBookingService', () => {
     // Verify transaction was called with an array of two prisma calls
     const txArg = mockPrismaTransaction.mock.calls[0][0];
     expect(txArg).toHaveLength(2);
-    expect(result).toBe(txResult);
+    expect(result).toEqual([txResult[0], null]);
   });
 });
 
@@ -160,22 +192,14 @@ describe('booking.service — checkOutBookingService', () => {
   });
 
   it('should update booking to CHECKED_OUT, room to CLEANING, and create a housekeeping task', async () => {
-    const txResult = [
-      { id: 'booking-1', status: 'CHECKED_OUT' },
-      { id: 'room-1', status: 'CLEANING' },
-      { id: 'task-1', status: 'PENDING' },
-    ];
-    mockPrismaTransaction.mockResolvedValue(txResult);
-    mockPrismaBookingFindUnique.mockResolvedValue(
-      makeBookingResult({ status: 'CHECKED_OUT' })
-    );
+    const updatedBooking = { id: 'booking-1', status: 'CHECKED_OUT', guest: { name: 'John Doe' }, room: { number: '101' }, checkIn: new Date(), checkOut: new Date(), total: { toNumber: () => 100 } };
+    mockPrismaBookingUpdate.mockResolvedValue(updatedBooking);
 
     const result = await checkOutBookingService('booking-1', 'room-1');
 
-    expect(mockPrismaTransaction).toHaveBeenCalledOnce();
-    // Verify transaction was called with an array of three prisma calls
-    const txArg = mockPrismaTransaction.mock.calls[0][0];
-    expect(txArg).toHaveLength(3);
-    expect(result).toBe(txResult);
+    expect(mockPrismaBookingUpdate).toHaveBeenCalledOnce();
+    expect(mockPrismaRoomUpdate).toHaveBeenCalledOnce();
+    expect(mockPrismaHousekeepingCreate).toHaveBeenCalledOnce();
+    expect(result).toEqual([updatedBooking, null, null]);
   });
 });

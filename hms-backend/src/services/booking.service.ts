@@ -4,19 +4,36 @@ import { notifyRoles } from './notificationService';
 import { getPublicSettingsData } from '../utils/settings';
 
 export const createBookingService = async (bookingData: any) => {
-  const [newBooking] = await prisma.$transaction([
-    prisma.booking.create({
+  const newBooking = await prisma.$transaction(async (tx) => {
+    const overlap = await tx.booking.findFirst({
+      where: {
+        roomId: bookingData.roomId,
+        status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+        checkIn: { lt: bookingData.checkOut },
+        checkOut: { gt: bookingData.checkIn },
+      },
+      select: { id: true },
+    });
+
+    if (overlap) {
+      throw new Error(`Room ${bookingData.roomId} is already booked for an overlapping date range.`);
+    }
+
+    const booking = await tx.booking.create({
       data: bookingData,
       include: {
         guest: true,
         room: { include: { roomType: true } }
       }
-    }),
-    prisma.room.update({
+    });
+
+    await tx.room.update({
       where: { id: bookingData.roomId },
       data: { status: 'RESERVED' }
-    })
-  ]);
+    });
+
+    return booking;
+  }, { isolationLevel: 'Serializable' });
 
   emitToHotel('main', 'room:status_changed', { roomId: bookingData.roomId, newStatus: 'RESERVED' });
 
@@ -104,24 +121,29 @@ export const checkInBookingService = async (bookingId: string, roomId: string) =
   return [updatedBooking, null]; // returning array to match original return shape for any potential consumers expecting array result
 };
 
+export const checkOutBookingServiceTx = async (tx: any, bookingId: string, roomId: string) => {
+  const updatedBooking = await tx.booking.update({
+    where: { id: bookingId },
+    data: { status: 'CHECKED_OUT' },
+    include: { guest: true, room: true }
+  });
+  await tx.room.update({
+    where: { id: roomId },
+    data: { status: 'CLEANING' }
+  });
+  await tx.housekeepingTask.create({
+    data: {
+      roomId: roomId,
+      status: 'PENDING'
+    }
+  });
+  return updatedBooking;
+};
+
 export const checkOutBookingService = async (bookingId: string, roomId: string) => {
-  const [updatedBooking] = await prisma.$transaction([
-    prisma.booking.update({
-      where: { id: bookingId },
-      data: { status: 'CHECKED_OUT' },
-      include: { guest: true, room: true }
-    }),
-    prisma.room.update({
-      where: { id: roomId },
-      data: { status: 'CLEANING' }
-    }),
-    prisma.housekeepingTask.create({
-      data: {
-        roomId: roomId,
-        status: 'PENDING'
-      }
-    })
-  ]);
+  const updatedBooking = await prisma.$transaction(async (tx) => {
+    return checkOutBookingServiceTx(tx, bookingId, roomId);
+  });
 
   emitToHotel('main', 'booking:checked_out', { bookingId });
   emitToHotel('main', 'room:status_changed', { roomId, newStatus: 'CLEANING' });

@@ -3,6 +3,9 @@ import { Request, Response } from 'express';
 import prisma from '../prisma';
 import { createBookingService, checkInBookingService } from '../services/booking.service';
 import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
+import { Prisma } from '@prisma/client';
+const { Decimal } = Prisma;
+import { generateInvoice, computeInvoiceLineItems } from '../services/billing.service';
 import { getPagination, buildMeta } from '../utils/pagination';
 
 export const getBookings = asyncHandler(async (req: Request, res: Response) => {
@@ -298,66 +301,27 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
     // Calculate nights
-    const checkInDate = new Date(booking.checkIn);
-    const checkOutDate = new Date(booking.checkOut);
-    const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
-
-    // Room charges
-    const roomRate = booking.room.price.toNumber();
-    const totalRoomCharges = nights * roomRate;
-
-    // Food Orders
-    let totalFoodCharges = 0;
-    const foodItems = [];
-    for (const order of booking.foodOrders) {
-      for (const item of order.items) {
-        const itemTotal = item.quantity * item.price.toNumber();
-        totalFoodCharges += itemTotal;
-        foodItems.push({
-          description: `Restaurant (${item.itemName})`,
-          qty: item.quantity,
-          rate: item.price.toNumber(),
-          amount: itemTotal
-        });
-      }
-    }
-
-    // Standard items list
-    const items = [
-      {
-        description: `Room Charges (${booking.room.roomType.name})`,
-        qty: nights,
-        rate: roomRate,
-        amount: totalRoomCharges
-      },
-      ...foodItems
-    ];
-
-    const subTotal = totalRoomCharges + totalFoodCharges;
-
-    // Tax settings (single call — result is cached)
+    // Compute line items using shared logic
     const tax = await getTaxSettings();
-    const taxRate = tax.rate;
-    const taxAmount = subTotal * taxRate;
-    
-    // Check if an invoice already exists with a saved discount
-    const existingInvoice = await prisma.invoice.findUnique({
+    const { items, subTotal, taxAmount } = computeInvoiceLineItems(booking, tax.rate, tax.name, tax.pct);
+
+    // Existing invoice discount
+    let existingInvoice = await prisma.invoice.findUnique({
       where: { bookingId: id },
       include: { items: true }
     });
 
-    // We can allow discount to be passed via query for preview, or fetch from DB if invoice exists.
-    let discount = 0;
+    let discount = new Decimal(0);
     if (existingInvoice) {
        const discountItem = existingInvoice.items.find(i => i.description === 'Discount');
        if (discountItem) {
-         discount = Math.abs(discountItem.amount.toNumber());
+         discount = discountItem.amount.mul(-1);
        }
     }
 
-    const totalAmount = subTotal + taxAmount - discount;
-    const paidAmount = booking.payments.reduce((sum, p) => sum + p.amount.toNumber(), 0);
-    const balanceDue = totalAmount - paidAmount;
+    const totalAmount = subTotal.plus(taxAmount).minus(discount);
+    const paidAmount = booking.payments.reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
+    const balanceDue = totalAmount.minus(paidAmount);
 
     res.json({
       bookingId: booking.id,
@@ -366,14 +330,14 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       status: booking.status,
-      items,
-      subTotal,
-      taxAmount,
-      discount,
-      totalAmount,
-      paidAmount,
-      balanceDue,
-      payments: booking.payments,
+      items: items.map(i => ({ ...i, amount: i.amount.toNumber() })),
+      subTotal: subTotal.toNumber(),
+      taxAmount: taxAmount.toNumber(),
+      discount: discount.toNumber(),
+      totalAmount: totalAmount.toNumber(),
+      paidAmount: paidAmount.toNumber(),
+      balanceDue: balanceDue.toNumber(),
+      payments: booking.payments.map(p => ({ ...p, amount: p.amount.toNumber() })),
       hasInvoice: !!existingInvoice
     });
 
@@ -395,49 +359,8 @@ export const checkoutBooking = asyncHandler(async (req: Request, res: Response) 
 
     // If invoice exists, don't recreate it
     let invoice = await prisma.invoice.findUnique({ where: { bookingId: id } });
-    
     if (!invoice) {
-      // Calculate charges
-      const checkInDate = new Date(booking.checkIn);
-      const checkOutDate = new Date(booking.checkOut);
-      const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)));
-      const roomRate = booking.room.price.toNumber();
-      
-      const invoiceItems = [];
-      invoiceItems.push({ description: `Room Charges (${booking.room.roomType.name})`, amount: nights * roomRate });
-      
-      for (const order of booking.foodOrders) {
-        for (const item of order.items) {
-          invoiceItems.push({ description: `Restaurant (${item.itemName} x${item.quantity})`, amount: item.quantity * item.price.toNumber() });
-        }
-      }
-
-      const subTotal = invoiceItems.reduce((sum, i) => sum + i.amount, 0);
-      
-      // Tax settings (single call — result is cached)
-      const tax = await getTaxSettings();
-      const taxRate = tax.rate;
-      const taxName = tax.name;
-      const taxPct  = tax.pct;
-
-      const taxAmount = subTotal * taxRate;
-      invoiceItems.push({ description: `${taxName} (${taxPct}%)`, amount: taxAmount });
-
-      if (discount && Number(discount) > 0) {
-        invoiceItems.push({ description: 'Discount', amount: -Number(discount) });
-      }
-
-      invoice = await prisma.invoice.create({
-        data: {
-          bookingId: id,
-          items: {
-            create: invoiceItems.map(item => ({
-              description: item.description,
-              amount: item.amount
-            }))
-          }
-        }
-      });
+      invoice = await generateInvoice(prisma, booking, Number(discount) || 0);
     }
 
     res.json(invoice);

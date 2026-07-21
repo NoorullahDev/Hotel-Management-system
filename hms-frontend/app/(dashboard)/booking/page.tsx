@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Plus, Search, MoreVertical, Check, X, Calendar, Activity, Users, ChevronLeft, ChevronRight } from 'lucide-react';
-import NewBookingWizard from './_components/NewBookingWizard';
+import NewBookingWizard from '@/components/wizard/NewBookingWizard';
 import GuestDetailsSidebar from '../_components/GuestDetailsSidebar';
 import BookingCalendar from './_components/BookingCalendar';
 import { api } from '@/lib/api';

@@ -68,11 +68,25 @@ export interface PublicSettings {
   taxName: string;
 }
 
+interface PublicSettingsCache {
+  value: PublicSettings;
+  expiresAt: number;
+}
+
+let _publicCache: PublicSettingsCache | null = null;
+const PUBLIC_CACHE_TTL_MS = 60_000; // 1 minute
+
 /**
  * Fetch all public-facing settings in a single DB query.
  * Falls back to HotelSettings (legacy model) for any missing keys.
+ * Cached for 60 seconds to improve performance.
  */
 export async function getPublicSettingsData(): Promise<PublicSettings> {
+  const now = Date.now();
+  if (_publicCache && _publicCache.expiresAt > now) {
+    return _publicCache.value;
+  }
+
   // Single query — the Setting table is tiny
   const [allSettings, legacySettings] = await Promise.all([
     prisma.setting.findMany(),
@@ -96,7 +110,7 @@ export async function getPublicSettingsData(): Promise<PublicSettings> {
     ? parseFloat((settingMap['rate'] as string) || legacySettings?.taxRate?.toString() || '0')
     : 0;
 
-  return {
+  const value: PublicSettings = {
     hotelName:              (settingMap['hotelName'] as string)              || legacySettings?.name        || 'Your Hotel Name',
     hotelLogo:              (settingMap['hotelLogo'] as string)              || null,
     hotelBanner:            (settingMap['hotelBanner'] as string)            || null,
@@ -114,4 +128,14 @@ export async function getPublicSettingsData(): Promise<PublicSettings> {
     taxRate,
     taxName:                (settingMap['name'] as string)                   || 'GST',
   };
+
+  _publicCache = { value, expiresAt: now + PUBLIC_CACHE_TTL_MS };
+  return value;
+}
+
+/**
+ * Invalidate the public settings cache. Call this after settings are updated.
+ */
+export function invalidatePublicSettingsCache(): void {
+  _publicCache = null;
 }

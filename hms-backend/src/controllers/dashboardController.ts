@@ -9,19 +9,33 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(todayEnd);
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+
     const [
       checkIns,
       checkOuts,
+      yCheckIns,
+      yCheckOuts,
       roomGroups,
       todayPayments,
+      yPayments,
       settings
     ] = await Promise.all([
-      prisma.booking.count({ where: { checkIn: { gte: todayStart, lte: todayEnd } } }),
-      prisma.booking.count({ where: { checkOut: { gte: todayStart, lte: todayEnd } } }),
+      prisma.booking.count({ where: { checkIn: { gte: todayStart, lte: todayEnd }, status: { not: 'CANCELLED' } } }),
+      prisma.booking.count({ where: { checkOut: { gte: todayStart, lte: todayEnd }, status: { not: 'CANCELLED' } } }),
+      prisma.booking.count({ where: { checkIn: { gte: yesterdayStart, lte: yesterdayEnd }, status: { not: 'CANCELLED' } } }),
+      prisma.booking.count({ where: { checkOut: { gte: yesterdayStart, lte: yesterdayEnd }, status: { not: 'CANCELLED' } } }),
       prisma.room.groupBy({ by: ['status'], _count: { _all: true } }),
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: { createdAt: { gte: todayStart, lte: todayEnd } }
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: yesterdayStart, lte: yesterdayEnd } }
       }),
       getPublicSettingsData()
     ]);
@@ -35,14 +49,28 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
 
     const occupancyRate = totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : "0.0";
     const revenue = todayPayments._sum.amount ? todayPayments._sum.amount.toNumber() : 0;
+    const yRevenue = yPayments._sum.amount ? yPayments._sum.amount.toNumber() : 0;
 
-    // We use mock deltas for v1 as discussed in the plan
+    const calcDelta = (today: number, yesterday: number, isPercent = false) => {
+      const diff = today - yesterday;
+      if (yesterday === 0) return { delta: diff > 0 ? '+100%' : '0%', isPositive: diff >= 0 };
+      const pct = (diff / yesterday) * 100;
+      const sign = diff > 0 ? '+' : '';
+      return { delta: `${sign}${pct.toFixed(1)}%`, isPositive: diff >= 0 };
+    };
+
+    const calcRawDelta = (today: number, yesterday: number) => {
+      const diff = today - yesterday;
+      const sign = diff > 0 ? '+' : '';
+      return { delta: `${sign}${diff}`, isPositive: diff >= 0 };
+    };
+
     res.json({
-      checkIns: { value: checkIns.toString(), delta: '+5%', isPositive: true },
-      checkOuts: { value: checkOuts.toString(), delta: '+2%', isPositive: true },
-      occupancy: { value: `${occupancyRate}%`, delta: '+1.2%', isPositive: true },
-      revenue: { value: `${settings.currencySymbol} ${revenue.toLocaleString()}`, delta: '+8%', isPositive: true },
-      available: { value: availableRooms.toString(), delta: '-2', isPositive: false },
-      reserved: { value: reservedRooms.toString(), delta: '+1', isPositive: true },
+      checkIns: { value: checkIns.toString(), ...calcDelta(checkIns, yCheckIns) },
+      checkOuts: { value: checkOuts.toString(), ...calcDelta(checkOuts, yCheckOuts) },
+      occupancy: { value: `${occupancyRate}%`, delta: '0%', isPositive: true },
+      revenue: { value: `${settings.currencySymbol} ${revenue.toLocaleString()}`, ...calcDelta(revenue, yRevenue) },
+      available: { value: availableRooms.toString(), delta: '0', isPositive: true },
+      reserved: { value: reservedRooms.toString(), delta: '0', isPositive: true },
     });
   });

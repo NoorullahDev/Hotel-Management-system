@@ -10,7 +10,7 @@ import OccupancyChart from './_components/OccupancyChart';
 import NotificationsFeed from './_components/NotificationsFeed';
 
 export default function DashboardPage() {
-  const [userName, setUserName] = useState('Admin');
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
     const userStr = localStorage.getItem('hms_user');
@@ -27,7 +27,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-theme-text mb-1">Dashboard</h1>
-        <p className="text-theme-muted text-sm">Welcome back, {userName}! Here's what's happening today.</p>
+        <p className="text-theme-muted text-sm">{userName ? `Welcome back, ${userName}! ` : 'Welcome! '}Here's what's happening today.</p>
       </div>
 
       {/* Stats Row */}

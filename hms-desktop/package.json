@@ -38,10 +38,6 @@
         "to": "hms-backend/package.json"
       },
       {
-        "from": "../hms-backend/.env",
-        "to": "hms-backend/.env"
-      },
-      {
         "from": "../hms-backend/node_modules",
         "to": "hms-backend/node_modules"
       },

@@ -53,6 +53,14 @@ npm start
 
 *(Note: Ensure your database environment variables are correctly configured in `hms-backend/.env` before starting the server.)*
 
+> [!IMPORTANT]
+> **Default Admin Credentials**
+> If you have seeded the database (`npx prisma db seed`), the default admin user is created with:
+> - **Username:** `admin`
+> - **Password:** `xQ9!mP2#vK8y`
+> 
+> **You MUST log in and change this password immediately as your very first action.**
+
 ---
 
 ## 📋 Key Features

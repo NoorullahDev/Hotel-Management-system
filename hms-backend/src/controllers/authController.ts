@@ -13,9 +13,10 @@ if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { username, password } = req.body;
+  const normalizedUsername = (username || '').trim().toLowerCase();
 
     let user = await prisma.user.findUnique({
-      where: { username },
+      where: { username: normalizedUsername },
       include: { role: true },
     });
 
@@ -85,9 +86,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { username, email, password, name, roleName } = req.body;
+  const normalizedUsername = (username || '').trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email }, { username }] }
+      where: { OR: [{ email }, { username: normalizedUsername }] }
     });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email or username already exists' });
@@ -104,7 +106,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
     const newUser = await prisma.user.create({
       data: {
-        username,
+        username: normalizedUsername,
         email,
         passwordHash,
         name,

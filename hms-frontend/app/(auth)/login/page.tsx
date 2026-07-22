@@ -84,14 +84,15 @@ function LoginContent() {
     setError('');
 
     try {
-      const data = await api.post<any>('/api/auth/login', { username, password });
+      const trimmedUsername = username.trim();
+      const data = await api.post<any>('/api/auth/login', { username: trimmedUsername, password });
 
       // Store tokens
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
 
       if (rememberMe) {
-        localStorage.setItem('rememberedUsername', username);
+        localStorage.setItem('rememberedUsername', trimmedUsername);
       } else {
         localStorage.removeItem('rememberedUsername');
       }

@@ -78,7 +78,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-    const finalUsername = username ? String(username) : String(email).split('@')[0];
+    const finalUsername = (username ? String(username) : String(email).split('@')[0]).trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
       where: { OR: [{ email: String(email) }, { username: finalUsername }] }
@@ -141,6 +141,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
 export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
   const staffId = String(req.params.id);
   const { name, username, email, phone, department, role, shift, status } = req.body;
+  const normalizedUsername = username ? String(username).trim().toLowerCase() : undefined;
 
     const staff = await prisma.staff.findUnique({ where: { id: staffId }, include: { user: true } });
     if (!staff) {
@@ -153,7 +154,7 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
           where: { id: staff.userId },
           data: {
             name: name ? String(name) : undefined,
-            username: username ? String(username) : undefined,
+            username: normalizedUsername,
             email: email ? String(email) : undefined,
             phone: phone !== undefined ? String(phone) : undefined,
           }

@@ -22,9 +22,9 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     name: '',
     phone: '',
     email: '',
-    idType: 'CNIC',
+    idType: bookingType === 'FOREIGN' ? 'Passport' : 'CNIC',
     idNumber: '',
-    nationality: 'Pakistani',
+    nationality: bookingType === 'FOREIGN' ? '' : 'Pakistani',
     city: ''
   });
 
@@ -240,9 +240,9 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                                   name: g.name,
                                   phone: g.phone || '',
                                   email: g.email || '',
-                                  idType: g.idType || 'CNIC',
+                                  idType: g.idType || (bookingType === 'FOREIGN' ? 'Passport' : 'CNIC'),
                                   idNumber: g.idNumber || '',
-                                  nationality: g.nationality || 'Pakistani',
+                                  nationality: g.nationality || (bookingType === 'FOREIGN' ? '' : 'Pakistani'),
                                   city: g.city || ''
                                 });
                                 setGuestSearch('');

@@ -3,7 +3,8 @@ import path from 'path';
 import fs from 'fs';
 
 // Ensure temp uploads directory exists
-const tempDir = path.join(__dirname, '../../uploads/temp');
+const uploadDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
+const tempDir = path.join(uploadDir, 'temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir, { recursive: true });
 }

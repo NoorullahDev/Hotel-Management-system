@@ -284,7 +284,7 @@ export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Respons
     let reportLog = 'Backup Verification Report\n===========================\n\n';
     let missingFiles = 0;
 
-    const uploadsDir = path.join(__dirname, '../../uploads');
+    const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
 
     // Helper to validate and add file
     const processImageField = (obj: any, fieldName: string, entityName: string) => {

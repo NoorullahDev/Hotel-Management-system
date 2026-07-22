@@ -1,17 +1,15 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const waitOn = require('wait-on');
 
 // Configuration
 const BACKEND_PORT = 4000;
-const FRONTEND_PORT = 3000;
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
-const FRONTEND_URL = `http://localhost:${FRONTEND_PORT}`;
 
 let mainWindow = null;
 let backendProcess = null;
-let frontendProcess = null;
 
 // Determine paths based on whether we're in dev or production
 function getBasePath() {
@@ -25,21 +23,34 @@ function getBackendPath() {
   return path.join(getBasePath(), 'hms-backend');
 }
 
-function getFrontendPath() {
-  return path.join(getBasePath(), 'hms-frontend');
-}
-
 // Start the backend server
 function startBackend() {
   return new Promise((resolve, reject) => {
     const backendDir = getBackendPath();
     console.log(`Starting backend from: ${backendDir}`);
 
-    // Use npx nodemon for dev, or node for production
-    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    backendProcess = spawn(command, ['ts-node', '--transpile-only', 'src/server.ts'], {
+    // Setup SQLite DB Path
+    const userDataPath = app.getPath('userData');
+    const dbPath = path.join(userDataPath, 'dev.db');
+    
+    // If db doesn't exist, copy initial dev.db
+    if (!fs.existsSync(dbPath)) {
+      const initialDb = path.join(backendDir, 'prisma', 'dev.db');
+      if (fs.existsSync(initialDb)) {
+        fs.copyFileSync(initialDb, dbPath);
+        console.log('Copied initial SQLite database to AppData:', dbPath);
+      }
+    }
+    
+    const dbUrl = `file:${dbPath}`;
+
+    // Use node server.js for production, npx ts-node for dev
+    const command = app.isPackaged ? 'node' : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
+    const args = app.isPackaged ? ['dist/server.js'] : ['ts-node', '--transpile-only', 'src/server.ts'];
+
+    backendProcess = spawn(command, args, {
       cwd: backendDir,
-      env: { ...process.env, PORT: String(BACKEND_PORT) },
+      env: { ...process.env, PORT: String(BACKEND_PORT), DATABASE_URL: dbUrl },
       shell: true,
       stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -67,46 +78,6 @@ function startBackend() {
 
     // Timeout fallback — resolve after 15s even if we don't see the message
     setTimeout(() => resolve(), 15000);
-  });
-}
-
-// Start the frontend server
-function startFrontend() {
-  return new Promise((resolve, reject) => {
-    const frontendDir = getFrontendPath();
-    console.log(`Starting frontend from: ${frontendDir}`);
-
-    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    frontendProcess = spawn(command, ['next', 'dev'], {
-      cwd: frontendDir,
-      env: {
-        ...process.env,
-        PORT: String(FRONTEND_PORT),
-        NEXT_PUBLIC_BACKEND_URL: BACKEND_URL
-      },
-      shell: true,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-
-    frontendProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log(`[Frontend] ${output}`);
-    });
-
-    frontendProcess.stderr.on('data', (data) => {
-      console.error(`[Frontend Error] ${data.toString()}`);
-    });
-
-    frontendProcess.on('error', (err) => {
-      console.error('Failed to start frontend:', err);
-      reject(err);
-    });
-
-    frontendProcess.on('close', (code) => {
-      console.log(`Frontend process exited with code ${code}`);
-    });
-
-    resolve();
   });
 }
 
@@ -149,16 +120,6 @@ function killAllProcesses() {
     }
     backendProcess = null;
   }
-
-  if (frontendProcess) {
-    console.log('Killing frontend process...');
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', String(frontendProcess.pid), '/f', '/t'], { shell: true });
-    } else {
-      frontendProcess.kill('SIGTERM');
-    }
-    frontendProcess = null;
-  }
 }
 
 // Main application startup
@@ -199,22 +160,18 @@ app.whenReady().then(async () => {
   try {
     // Start backend first
     await startBackend();
-    console.log('Backend started.');
+    console.log('Backend started. Waiting for resources to be ready...');
 
-    // Start frontend
-    await startFrontend();
-    console.log('Frontend starting...');
-
-    // Wait for the frontend to be ready
+    // Wait for the backend to be fully responding to requests
     await waitOn({
-      resources: [FRONTEND_URL],
+      resources: [BACKEND_URL],
       timeout: 60000,
       interval: 500,
       validateStatus: (status) => status >= 200 && status < 400,
     });
 
-    console.log('Frontend is ready! Loading app...');
-    mainWindow.loadURL(FRONTEND_URL);
+    console.log('App is ready! Loading frontend...');
+    mainWindow.loadURL(BACKEND_URL);
 
   } catch (err) {
     console.error('Startup error:', err);

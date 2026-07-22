@@ -57,8 +57,21 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/roles', roleRoutes);
 
-// 404 Not Found Handler
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../../hms-frontend/out');
+app.use(express.static(frontendPath));
+
+// For SPA routing, fallback to index.html for non-API routes
 app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  } else {
+    next();
+  }
+});
+
+// 404 Not Found Handler
+app.use('/api', (req, res, next) => {
   res.status(404).json({ message: 'Resource not found' });
 });
 

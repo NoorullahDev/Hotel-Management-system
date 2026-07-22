@@ -30,22 +30,32 @@
     ],
     "extraResources": [
       {
-        "from": "../hms-backend",
-        "to": "hms-backend",
-        "filter": [
-          "**/*",
-          "!node_modules/**",
-          "!*.ts"
-        ]
+        "from": "../hms-backend/dist",
+        "to": "hms-backend/dist"
       },
       {
-        "from": "../hms-frontend",
-        "to": "hms-frontend",
-        "filter": [
-          "**/*",
-          "!node_modules/**",
-          "!*.ts"
-        ]
+        "from": "../hms-backend/package.json",
+        "to": "hms-backend/package.json"
+      },
+      {
+        "from": "../hms-backend/.env",
+        "to": "hms-backend/.env"
+      },
+      {
+        "from": "../hms-backend/node_modules",
+        "to": "hms-backend/node_modules"
+      },
+      {
+        "from": "../hms-backend/prisma",
+        "to": "hms-backend/prisma"
+      },
+      {
+        "from": "../hms-backend/uploads",
+        "to": "hms-backend/uploads"
+      },
+      {
+        "from": "../hms-frontend/out",
+        "to": "hms-frontend/out"
       }
     ],
     "win": {

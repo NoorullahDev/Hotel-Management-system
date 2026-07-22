@@ -29,10 +29,10 @@ function startBackend() {
     const backendDir = getBackendPath();
     console.log(`Starting backend from: ${backendDir}`);
 
-    // Setup SQLite DB Path
     const userDataPath = app.getPath('userData');
-    const dbPath = path.join(userDataPath, 'dev.db');
     
+    // Setup SQLite DB Path
+    const dbPath = path.join(userDataPath, 'dev.db');
     // If db doesn't exist, copy initial dev.db
     if (!fs.existsSync(dbPath)) {
       const initialDb = path.join(backendDir, 'prisma', 'dev.db');
@@ -40,6 +40,30 @@ function startBackend() {
         fs.copyFileSync(initialDb, dbPath);
         console.log('Copied initial SQLite database to AppData:', dbPath);
       }
+    }
+    
+    // Setup Uploads Path
+    const uploadsPath = path.join(userDataPath, 'uploads');
+    if (!fs.existsSync(uploadsPath)) {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+    }
+
+    // Setup .env secrets
+    const envPath = path.join(userDataPath, '.env');
+    let jwtSecret = process.env.JWT_SECRET;
+    let refreshSecret = process.env.JWT_REFRESH_SECRET;
+    
+    if (!fs.existsSync(envPath)) {
+      const crypto = require('crypto');
+      jwtSecret = crypto.randomBytes(32).toString('hex');
+      refreshSecret = crypto.randomBytes(32).toString('hex');
+      fs.writeFileSync(envPath, `JWT_SECRET=${jwtSecret}\nJWT_REFRESH_SECRET=${refreshSecret}\n`);
+    } else {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      const jwtMatch = envContent.match(/JWT_SECRET=(.*)/);
+      const refreshMatch = envContent.match(/JWT_REFRESH_SECRET=(.*)/);
+      if (jwtMatch) jwtSecret = jwtMatch[1].trim();
+      if (refreshMatch) refreshSecret = refreshMatch[1].trim();
     }
     
     const dbUrl = `file:${dbPath}`;
@@ -50,7 +74,14 @@ function startBackend() {
 
     backendProcess = spawn(command, args, {
       cwd: backendDir,
-      env: { ...process.env, PORT: String(BACKEND_PORT), DATABASE_URL: dbUrl },
+      env: { 
+        ...process.env, 
+        PORT: String(BACKEND_PORT), 
+        DATABASE_URL: dbUrl,
+        UPLOADS_DIR: uploadsPath,
+        JWT_SECRET: jwtSecret,
+        JWT_REFRESH_SECRET: refreshSecret
+      },
       shell: true,
       stdio: ['pipe', 'pipe', 'pipe']
     });

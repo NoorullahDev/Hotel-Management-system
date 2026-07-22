@@ -33,7 +33,8 @@ app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' }));
 app.use(express.json());
 
 // Serve static uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+const uploadDir = process.env.UPLOADS_DIR || path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadDir));
 
 // Routes
 app.use('/api/auth', authRoutes);

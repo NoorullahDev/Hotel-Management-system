@@ -12,10 +12,10 @@ if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
 }
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { username, password } = req.body;
 
     let user = await prisma.user.findUnique({
-      where: { email },
+      where: { username },
       include: { role: true },
     });
 
@@ -76,6 +76,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       user: {
         id: user.id,
         name: user.name,
+        username: user.username,
         email: user.email,
         role: user.role.name,
       }
@@ -83,11 +84,13 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   });
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, name, roleName } = req.body;
+  const { username, email, password, name, roleName } = req.body;
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email }, { username }] }
+    });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User with this email or username already exists' });
     }
 
     // Ensure role exists
@@ -101,6 +104,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
     const newUser = await prisma.user.create({
       data: {
+        username,
         email,
         passwordHash,
         name,
@@ -154,6 +158,7 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
     res.json({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       role: user.role.name,
       profilePhoto: user.profilePhoto,
@@ -211,6 +216,7 @@ export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
       user: {
         id: user.id,
         name: user.name,
+        username: user.username,
         email: user.email,
         role: user.role.name,
       }

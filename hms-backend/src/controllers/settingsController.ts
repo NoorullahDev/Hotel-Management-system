@@ -98,7 +98,7 @@ export const getAccountSettings = asyncHandler(async (req: AuthRequest, res: Res
     const userId = req.user!.userId;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, phone: true, profilePhoto: true, role: true },
+      select: { id: true, name: true, username: true, email: true, phone: true, profilePhoto: true, role: true },
     });
 
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -107,12 +107,12 @@ export const getAccountSettings = asyncHandler(async (req: AuthRequest, res: Res
 
 export const updateAccountSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user!.userId;
-    const { name, phone, profilePhoto } = req.body as { name: string; phone?: string; profilePhoto?: string };
+    const { name, username, phone, profilePhoto } = req.body as { name: string; username?: string; phone?: string; profilePhoto?: string };
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { name, phone, profilePhoto },
-      select: { id: true, name: true, email: true, phone: true, profilePhoto: true },
+      data: { name, username, phone, profilePhoto },
+      select: { id: true, name: true, username: true, email: true, phone: true, profilePhoto: true },
     });
 
     await prisma.auditLog.create({

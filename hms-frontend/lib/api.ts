@@ -33,12 +33,41 @@ export async function apiFetch<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    if (path.includes('/api/auth/login')) {
+    if (path.includes('/api/auth/login') || path.includes('/api/auth/refresh')) {
       const body = await res.json().catch(() => ({}));
       throw new ApiError(res.status, body.message || 'Invalid credentials');
     }
-    // Token expired or invalid
+
     if (typeof window !== 'undefined') {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            localStorage.setItem('accessToken', data.accessToken);
+            
+            // Retry the original request
+            headers['Authorization'] = `Bearer ${data.accessToken}`;
+            const retryRes = await fetch(`${API_BASE}${path}`, { ...options, headers });
+            
+            if (!retryRes.ok) {
+              const body = await retryRes.json().catch(() => ({}));
+              throw new ApiError(retryRes.status, body.message || `HTTP ${retryRes.status}`);
+            }
+            return retryRes.json() as Promise<T>;
+          }
+        } catch (e) {
+          // Silent fallback to standard logout if refresh fails
+        }
+      }
+
+      // Token expired or invalid and refresh failed/missing
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');

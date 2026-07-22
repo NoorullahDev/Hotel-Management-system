@@ -19,6 +19,7 @@ type StaffWithUser = {
   status: string;
   user: {
     name: string;
+    username: string;
     email: string;
     phone: string | null;
     role: {
@@ -34,6 +35,7 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response) => {
         user: {
           select: {
             name: true,
+            username: true,
             email: true,
             phone: true,
             role: {
@@ -53,6 +55,7 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response) => {
       id: s.id,
       employeeId: s.employeeId,
       name: s.user?.name || 'Unknown',
+      username: s.user?.username || '',
       email: s.user?.email || '',
       phone: s.user?.phone || '',
       department: s.department,
@@ -69,15 +72,19 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response) => {
 
 // Create new staff
 export const createStaff = asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, phone, department, role, shift, status, hireDate } = req.body;
+  const { name, username, email, phone, department, role, shift, status, hireDate } = req.body;
 
   if (!name || !email || !department || !role || !status) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-    const existingUser = await prisma.user.findUnique({ where: { email: String(email) } });
+    const finalUsername = username ? String(username) : String(email).split('@')[0];
+
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email: String(email) }, { username: finalUsername }] }
+    });
     if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+      return res.status(400).json({ message: 'User with this email or username already exists' });
     }
 
     let systemRoleName = 'Receptionist';
@@ -102,6 +109,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
 
       const user = await tx.user.create({
         data: {
+          username: finalUsername,
           email: String(email),
           name: String(name),
           phone: phone ? String(phone) : null,
@@ -132,7 +140,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
 // Update staff
 export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
   const staffId = String(req.params.id);
-  const { name, email, phone, department, role, shift, status } = req.body;
+  const { name, username, email, phone, department, role, shift, status } = req.body;
 
     const staff = await prisma.staff.findUnique({ where: { id: staffId }, include: { user: true } });
     if (!staff) {
@@ -140,11 +148,12 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
     }
 
     await prisma.$transaction(async (tx: TxClient) => {
-      if (name || email || phone !== undefined) {
+      if (name || username || email || phone !== undefined) {
         await tx.user.update({
           where: { id: staff.userId },
           data: {
             name: name ? String(name) : undefined,
+            username: username ? String(username) : undefined,
             email: email ? String(email) : undefined,
             phone: phone !== undefined ? String(phone) : undefined,
           }

@@ -84,7 +84,7 @@ function LoginContent() {
     setError('');
 
     try {
-      const data = await api.post<any>('/api/auth/login', { email: username, password });
+      const data = await api.post<any>('/api/auth/login', { username, password });
 
       // Store tokens
       localStorage.setItem('accessToken', data.accessToken);

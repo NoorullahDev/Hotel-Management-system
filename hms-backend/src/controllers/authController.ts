@@ -129,17 +129,7 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
     res.json({ accessToken: newAccessToken });
   });
 
-export const forgotPassword = async (req: Request, res: Response) => {
-  // Placeholder implementation
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ message: 'Email is required' });
-  }
 
-  // In a real application, you would generate a reset token, save it to the DB,
-  // and send an email to the user with a link containing the token.
-  res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
-};
 
 export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
   if (!req.user) {

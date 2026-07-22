@@ -252,9 +252,13 @@ function LoginContent() {
                 </div>
                 <span className="text-sm text-theme-muted group-hover:text-theme-text transition-colors">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-primary hover:text-blue-600 transition-colors font-medium">
+              <button 
+                type="button"
+                onClick={(e) => { e.preventDefault(); setError('Please contact your system administrator to reset your password.'); }}
+                className="text-sm text-primary hover:text-blue-600 transition-colors font-medium"
+              >
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             <button 
@@ -270,7 +274,7 @@ function LoginContent() {
 
 
           <p className="mt-8 text-center text-sm text-theme-muted">
-            Don&apos;t have an account? <a href="#" className="text-primary hover:text-blue-600 font-medium transition-colors">Contact Administrator</a>
+            Don&apos;t have an account? <span className="text-theme-muted-light font-medium">Contact your administrator.</span>
           </p>
         </div>
       </div>

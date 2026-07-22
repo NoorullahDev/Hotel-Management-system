@@ -314,7 +314,7 @@ export default function ForeignGuestsPage() {
       </div>
 
       {isWizardOpen && (
-        <ForeignBookingWizard onClose={() => setIsWizardOpen(false)} />
+        <ForeignBookingWizard bookingType="FOREIGN" onClose={() => setIsWizardOpen(false)} />
       )}
       
       {editBookingId && (

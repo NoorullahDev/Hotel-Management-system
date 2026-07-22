@@ -7,9 +7,10 @@ import { api } from '@/lib/api';
 
 interface Props {
   onClose?: () => void;
+  bookingType?: 'LOCAL' | 'FOREIGN';
 }
 
-export default function NewBookingWizard({ onClose }: Props) {
+export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Props) {
   const [step, setStep] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,7 +39,7 @@ export default function NewBookingWizard({ onClose }: Props) {
     const t = setTimeout(() => {
       if (guestSearch.length > 2) {
         setIsSearching(true);
-        api.get<any>(`/api/guests?search=${guestSearch}&limit=5&guestType=LOCAL`)
+        api.get<any>(`/api/guests?search=${guestSearch}&limit=5&guestType=${bookingType}`)
         .then(d => { setGuestResults(d.data || []); setShowDropdown(true); })
         .catch(() => setGuestResults([]))
         .finally(() => setIsSearching(false));
@@ -132,8 +133,8 @@ export default function NewBookingWizard({ onClose }: Props) {
 
     try {
       const payload = {
-        bookingType: 'LOCAL',
-        guest: { ...guestDetails, guestType: 'LOCAL' },
+        bookingType: bookingType,
+        guest: { ...guestDetails, guestType: bookingType },
         additionalGuests: additionalGuests.length > 0 ? additionalGuests : null,
         roomId: selectedRoomId,
         checkIn: stayDetails.checkIn,

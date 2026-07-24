@@ -56,8 +56,8 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
         prisma.room.count(),
         prisma.room.count({ where: { status: 'OCCUPIED' } }),
         prisma.room.count({ where: { status: 'RESERVED' } }),
-        prisma.booking.count(),
-        prisma.booking.count({ where: { createdAt: { lte: prevEnd } } }),
+        prisma.booking.count({ where: { createdAt: { gte: start, lte: end } } }),
+        prisma.booking.count({ where: { createdAt: { gte: prevStart, lte: prevEnd } } }),
         prisma.feedback.aggregate({ _avg: { rating: true }, where: { booking: { createdAt: { gte: start, lte: end } } } }),
         prisma.feedback.aggregate({ _avg: { rating: true }, where: { booking: { createdAt: { gte: prevStart, lte: prevEnd } } } }),
       ]);
@@ -80,6 +80,21 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
         }, 0) / stayBookings.length).toFixed(1)
       : '0.0';
 
+    const prevStayBookings = await prisma.booking.findMany({
+      where: { createdAt: { gte: prevStart, lte: prevEnd }, status: { not: 'CANCELLED' } },
+      select: { checkIn: true, checkOut: true },
+    });
+    const prevAvgLOS = prevStayBookings.length > 0
+      ? (prevStayBookings.reduce((sum, b) => {
+          const nights = Math.round((b.checkOut.getTime() - b.checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          return sum + Math.max(nights, 1);
+        }, 0) / prevStayBookings.length)
+      : 0;
+
+    const losDelta = prevAvgLOS > 0
+      ? (((parseFloat(avgLOS) - prevAvgLOS) / prevAvgLOS) * 100).toFixed(1)
+      : (parseFloat(avgLOS) > 0 ? '100.0' : '0.0');
+
     const satisfaction     = feedCur._avg.rating ? feedCur._avg.rating.toFixed(1) : '0.0';
     const prevSatisfaction = feedPrev._avg.rating ?? 0;
     const satDelta         = prevSatisfaction > 0
@@ -94,7 +109,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
       totalBookings:      bookCur,
       bookingsDelta:      parseFloat(bookDelta),
       avgLOS:             parseFloat(avgLOS),
-      losDelta:           4.1,  // placeholder — requires historical snapshot data
+      losDelta:           parseFloat(losDelta),
       guestSatisfaction:  parseFloat(satisfaction),
       satisfactionDelta:  parseFloat(satDelta),
     });

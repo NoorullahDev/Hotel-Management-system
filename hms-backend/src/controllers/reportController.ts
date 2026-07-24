@@ -105,7 +105,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
       totalRevenue,
       revenueDelta:       parseFloat(revDelta),
       occupancyRate:      parseFloat(occupancyRate),
-      occupancyDelta:     8.3,  // placeholder — requires historical snapshot data
+      occupancyDelta:     null, // Requires historical snapshot data not currently tracked
       totalBookings:      bookCur,
       bookingsDelta:      parseFloat(bookDelta),
       avgLOS:             parseFloat(avgLOS),

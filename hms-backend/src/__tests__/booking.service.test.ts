@@ -3,10 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /**
  * Unit tests for booking.service.ts
  *
- * The booking service delegates overlap detection to a PostgreSQL exclusion
- * constraint. These tests verify the service layer properly:
+ * The booking service delegates overlap detection to an application-level
+ * overlap check inside a Serializable transaction. These tests verify the service layer properly:
  *   - Passes data to Prisma and returns the result
- *   - Handles overlap errors (P2004 / 'overlapping_bookings')
+ *   - Handles overlap errors
  *   - Runs check-in as a transaction (booking + room update)
  *   - Runs check-out as a transaction (booking + room + housekeeping)
  */
@@ -19,6 +19,7 @@ const mockPrismaBookingFindUnique = vi.fn();
 const mockPrismaBookingFindFirst = vi.fn().mockResolvedValue(null);
 const mockPrismaBookingUpdate = vi.fn();
 const mockPrismaRoomUpdate = vi.fn();
+const mockPrismaRoomFindUnique = vi.fn();
 const mockPrismaHousekeepingCreate = vi.fn();
 const mockPrismaTransaction = vi.fn();
 
@@ -31,6 +32,7 @@ vi.mock('../prisma', () => ({
     },
     room: {
       update: (...args: any[]) => mockPrismaRoomUpdate(...args),
+      findUnique: (...args: any[]) => mockPrismaRoomFindUnique(...args),
     },
     housekeepingTask: {
       create: (...args: any[]) => mockPrismaHousekeepingCreate(...args),
@@ -52,6 +54,7 @@ vi.mock('../prisma', () => ({
           },
           room: {
             update: mockPrismaRoomUpdate,
+            findUnique: mockPrismaRoomFindUnique,
           },
           housekeepingTask: {
             create: mockPrismaHousekeepingCreate,
@@ -126,6 +129,7 @@ describe('booking.service — createBookingService', () => {
 
     // The service calls prisma.$transaction(async (tx) => ...)
     // Our mock will execute the callback, calling mockPrismaBookingCreate and mockPrismaRoomUpdate
+    mockPrismaRoomFindUnique.mockResolvedValue({ id: 'room-1', status: 'AVAILABLE' });
     mockPrismaBookingCreate.mockResolvedValue(expectedResult);
     mockPrismaRoomUpdate.mockResolvedValue(roomResult);
 
@@ -144,6 +148,7 @@ describe('booking.service — createBookingService', () => {
       checkOut: new Date('2026-08-05'),
     };
 
+    mockPrismaRoomFindUnique.mockResolvedValue({ id: 'room-1', status: 'AVAILABLE' });
     mockPrismaBookingFindFirst.mockResolvedValue({ id: 'overlap-booking' });
 
     await expect(createBookingService(bookingData)).rejects.toThrow(
@@ -152,6 +157,7 @@ describe('booking.service — createBookingService', () => {
   });
 
   it('should propagate generic database errors', async () => {
+    mockPrismaRoomFindUnique.mockResolvedValue({ id: 'room-1', status: 'AVAILABLE' });
     mockPrismaBookingFindFirst.mockResolvedValue(null);
     mockPrismaBookingCreate.mockRejectedValue(new Error('Connection refused'));
 

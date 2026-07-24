@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import TaskCard from './TaskCard';
 import { Trash2, Loader, CheckSquare, Eye, Users, Search } from 'lucide-react';
 import AssignStaffModal from './AssignStaffModal';
+import AddStaffModal from './AddStaffModal';
 import TaskDetailsSidebar from './TaskDetailsSidebar';
 import { api } from '@/lib/api';
 
@@ -12,6 +13,7 @@ export default function HousekeepingBoard() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
@@ -90,12 +92,20 @@ export default function HousekeepingBoard() {
               className="bg-theme-card shadow-soft border border-theme-border text-theme-text text-sm rounded-xl pl-9 pr-4 py-2.5 outline-none w-64 focus:border-primary transition-colors"
             />
           </div>
-          <button 
-            onClick={() => setShowAssignModal(true)}
-            className="bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors active:scale-95 shadow-md"
-          >
-            Assign Staff
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAddStaffModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors active:scale-95 shadow-md flex items-center gap-2"
+            >
+              <Users size={16} /> Add Staff
+            </button>
+            <button 
+              onClick={() => setShowAssignModal(true)}
+              className="bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors active:scale-95 shadow-md"
+            >
+              Assign Staff
+            </button>
+          </div>
         </div>
       </div>
 
@@ -220,6 +230,16 @@ export default function HousekeepingBoard() {
           onClose={() => setShowAssignModal(false)} 
           staffList={staffData} 
           onAssign={handleAssignNewTask} 
+        />
+      )}
+
+      {showAddStaffModal && (
+        <AddStaffModal 
+          onClose={() => setShowAddStaffModal(false)}
+          onStaffAdded={() => {
+            setShowAddStaffModal(false);
+            queryClient.invalidateQueries({ queryKey: ['staffList'] });
+          }}
         />
       )}
 

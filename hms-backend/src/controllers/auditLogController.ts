@@ -3,11 +3,12 @@ import { Request, Response } from 'express';
 import prisma from '../prisma';
 
 export const getAuditLogs = asyncHandler(async (req: Request, res: Response) => {
-    const { userId, module, dateFrom, dateTo, page = '1', limit = '10' } = req.query;
+    const { userId, module, action, dateFrom, dateTo, page = '1', limit = '10' } = req.query;
     
     const filter: any = {};
     if (userId) filter.userId = String(userId);
     if (module) filter.module = String(module);
+    if (action) filter.action = String(action);
     
     if (dateFrom || dateTo) {
       filter.createdAt = {};

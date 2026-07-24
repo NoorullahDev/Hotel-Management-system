@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler';
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../prisma';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
@@ -65,13 +66,14 @@ export const getAllStaff = asyncHandler(async (req: Request, res: Response) => {
       attendance: s.attendance,
       hireDate: s.hireDate,
       status: s.status,
+      userId: s.userId,
     }));
 
     res.json(formattedStaff);
   });
 
 // Create new staff
-export const createStaff = asyncHandler(async (req: Request, res: Response) => {
+export const createStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { name, username, email, phone, department, role, shift, status, hireDate } = req.body;
 
   if (!name || !email || !department || !role || !status) {
@@ -79,9 +81,10 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
   }
 
     const finalUsername = (username ? String(username) : String(email).split('@')[0]).trim().toLowerCase();
+    const finalEmail = String(email).trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email: String(email) }, { username: finalUsername }] }
+      where: { OR: [{ email: finalEmail }, { username: finalUsername }] }
     });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email or username already exists' });
@@ -110,7 +113,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
       const user = await tx.user.create({
         data: {
           username: finalUsername,
-          email: String(email),
+          email: finalEmail,
           name: String(name),
           phone: phone ? String(phone) : null,
           passwordHash,
@@ -134,11 +137,20 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
       return { user, staff: created };
     });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'CREATE_STAFF',
+        module: 'Staff',
+        details: `Created staff member ${newStaff.user.name} (${newStaff.staff.employeeId})`,
+      }
+    });
+
     res.status(201).json({ message: 'Staff created successfully', id: newStaff.staff.id });
   });
 
 // Update staff
-export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
+export const updateStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
   const staffId = String(req.params.id);
   const { name, username, email, phone, department, role, shift, status } = req.body;
   const normalizedUsername = username ? String(username).trim().toLowerCase() : undefined;
@@ -148,15 +160,29 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Staff not found' });
     }
 
+    let roleId = staff.user.roleId;
+    if (department && department !== staff.department) {
+      let systemRoleName = 'Receptionist';
+      const dept = String(department).toLowerCase();
+      if (dept === 'housekeeping') systemRoleName = 'Housekeeping';
+      else if (dept === 'restaurant') systemRoleName = 'Restaurant';
+      else if (dept === 'management') systemRoleName = 'Manager';
+
+      let systemRole = await prisma.role.findUnique({ where: { name: systemRoleName } });
+      if (!systemRole) systemRole = await prisma.role.findFirst();
+      if (systemRole) roleId = systemRole.id;
+    }
+
     await prisma.$transaction(async (tx: TxClient) => {
-      if (name || username || email || phone !== undefined) {
+      if (name || username || email || phone !== undefined || roleId !== staff.user.roleId) {
         await tx.user.update({
           where: { id: staff.userId },
           data: {
             name: name ? String(name) : undefined,
             username: normalizedUsername,
-            email: email ? String(email) : undefined,
+            email: email ? String(email).trim().toLowerCase() : undefined,
             phone: phone !== undefined ? String(phone) : undefined,
+            roleId: roleId !== staff.user.roleId ? roleId : undefined,
           }
         });
       }
@@ -172,11 +198,20 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
       });
     });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'UPDATE_STAFF',
+        module: 'Staff',
+        details: `Updated staff member ${staff.user.name}`,
+      }
+    });
+
     res.json({ message: 'Staff updated successfully' });
   });
 
 // Delete staff
-export const deleteStaff = asyncHandler(async (req: Request, res: Response) => {
+export const deleteStaff = asyncHandler(async (req: AuthRequest, res: Response) => {
   const staffId = String(req.params.id);
 
     const staff = await prisma.staff.findUnique({ where: { id: staffId } });
@@ -185,8 +220,23 @@ export const deleteStaff = asyncHandler(async (req: Request, res: Response) => {
     }
 
     await prisma.$transaction(async (tx: TxClient) => {
+      // Disconnect all tasks to prevent cascade deleting historical data
+      await tx.housekeepingTask.updateMany({
+        where: { staffId: staffId },
+        data: { staffId: null }
+      });
+
       await tx.staff.delete({ where: { id: staffId } });
       await tx.user.delete({ where: { id: staff.userId } });
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'DELETE_STAFF',
+        module: 'Staff',
+        details: `Deleted staff member ${staff.employeeId}`,
+      }
     });
 
     res.json({ message: 'Staff deleted successfully' });

@@ -4,7 +4,7 @@ import { User, CheckCircle, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export default function AccountTab() {
+export default function AccountTab({ setHasUnsavedChanges }: { setHasUnsavedChanges?: (val: boolean) => void }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -45,10 +45,11 @@ export default function AccountTab() {
       const data = await api.post<any>('/api/upload', formData);
       if (data.imageUrl) {
         setProfilePhoto(data.imageUrl);
+        setHasUnsavedChanges?.(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Failed to upload image');
+      setError(err.message || 'Failed to upload image');
     } finally {
       setIsUploading(false);
     }
@@ -60,9 +61,23 @@ export default function AccountTab() {
     setSuccess('');
     setIsSaving(true);
     try {
-      await api.patch('/api/settings/account', { name, phone, profilePhoto });
+      const updatedUser = await api.patch<any>('/api/settings/account', { name, phone, profilePhoto });
+      
+      const currentStorageStr = localStorage.getItem('hms_user');
+      if (currentStorageStr) {
+        try {
+          const currentStorage = JSON.parse(currentStorageStr);
+          localStorage.setItem('hms_user', JSON.stringify({ 
+            ...currentStorage, 
+            name: updatedUser.name, 
+            profilePhoto: updatedUser.profilePhoto,
+            avatar: updatedUser.profilePhoto
+          }));
+        } catch (e) {}
+      }
       
       setSuccess('Profile updated successfully');
+      setHasUnsavedChanges?.(false);
       setTimeout(() => {
         window.location.reload();
       }, 500);
@@ -111,11 +126,11 @@ export default function AccountTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-theme-muted mb-1">Full Name</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary" required />
+              <input type="text" value={name} onChange={e => { setName(e.target.value); setHasUnsavedChanges?.(true); }} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-theme-muted mb-1">Phone Number</label>
-              <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary" />
+              <input type="text" value={phone} onChange={e => { setPhone(e.target.value); setHasUnsavedChanges?.(true); }} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary" />
             </div>
           </div>
           

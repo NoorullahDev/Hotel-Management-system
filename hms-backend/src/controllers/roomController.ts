@@ -149,6 +149,15 @@ export const getRooms = asyncHandler(async (req: Request, res: Response) => {
 export const createRoom = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { number, floor, roomTypeId, price, amenities } = req.body;
     
+    if (price === undefined || price <= 0) {
+      return res.status(400).json({ message: 'Price must be greater than zero' });
+    }
+    
+    const parsedFloor = parseInt(floor);
+    if (isNaN(parsedFloor)) {
+      return res.status(400).json({ message: 'Floor must be a valid number' });
+    }
+    
     // Check if room number already exists
     const existing = await prisma.room.findUnique({ where: { number } });
     if (existing) {
@@ -158,7 +167,7 @@ export const createRoom = asyncHandler(async (req: AuthRequest, res: Response) =
     const newRoom = await prisma.room.create({
       data: {
         number,
-        floor: parseInt(floor),
+        floor: parsedFloor,
         roomTypeId,
         price,
         amenities: JSON.stringify(amenities || []),
@@ -168,6 +177,15 @@ export const createRoom = asyncHandler(async (req: AuthRequest, res: Response) =
       include: { roomType: true }
     });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'CREATE_ROOM',
+        module: 'Room Management',
+        details: `Created room ${number}`,
+      }
+    });
+
     res.status(201).json(newRoom);
   });
 
@@ -175,11 +193,39 @@ export const updateRoom = asyncHandler(async (req: AuthRequest, res: Response) =
     const id = req.params.id as string;
     const { number, floor, roomTypeId, price, amenities, imageUrl, status } = req.body;
 
+    if (price !== undefined && price <= 0) {
+      return res.status(400).json({ message: 'Price must be greater than zero' });
+    }
+
+    let parsedFloor: number | undefined;
+    if (floor !== undefined) {
+      parsedFloor = parseInt(floor);
+      if (isNaN(parsedFloor)) {
+        return res.status(400).json({ message: 'Floor must be a valid number' });
+      }
+    }
+
+    if (number) {
+      const existing = await prisma.room.findFirst({ where: { number, id: { not: id } } });
+      if (existing) {
+        return res.status(400).json({ message: 'Room number already exists' });
+      }
+    }
+
+    if (status === 'AVAILABLE') {
+      const pendingTask = await prisma.housekeepingTask.findFirst({
+        where: { roomId: id, status: { notIn: ['COMPLETED', 'INSPECTED'] } }
+      });
+      if (pendingTask) {
+        return res.status(400).json({ message: 'Cannot mark room as AVAILABLE while there are pending housekeeping tasks' });
+      }
+    }
+
     const updatedRoom = await prisma.room.update({
       where: { id },
       data: {
         number,
-        floor: floor ? parseInt(floor) : undefined,
+        floor: parsedFloor,
         roomTypeId,
         price,
         amenities: amenities !== undefined ? JSON.stringify(amenities) : undefined,
@@ -189,6 +235,15 @@ export const updateRoom = asyncHandler(async (req: AuthRequest, res: Response) =
       include: { roomType: true }
     });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'UPDATE_ROOM',
+        module: 'Room Management',
+        details: `Updated room ${updatedRoom.number}`,
+      }
+    });
+
     res.json(updatedRoom);
   });
 
@@ -196,7 +251,21 @@ export const updateRoomStatus = asyncHandler(async (req: AuthRequest, res: Respo
     const id = req.params.id as string;
     const { status } = req.body;
 
+    const validStatuses = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING', 'MAINTENANCE'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid room status' });
+    }
+
     const updatedRoom = await updateRoomStatusService(id, status);
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'UPDATE_ROOM_STATUS',
+        module: 'Room Management',
+        details: `Updated room ${updatedRoom.number} status to ${status}`,
+      }
+    });
 
     res.json(updatedRoom);
   });
@@ -225,7 +294,25 @@ export const deleteRoom = asyncHandler(async (req: AuthRequest, res: Response) =
       return res.status(400).json({ message: 'Cannot delete room with active bookings' });
     }
 
+    const anyBooking = await prisma.booking.findFirst({
+      where: { roomId: id }
+    });
+
+    if (anyBooking) {
+      return res.status(400).json({ message: 'Cannot delete room with booking history. Please set status to Maintenance instead.' });
+    }
+
     await prisma.room.delete({ where: { id } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'DELETE_ROOM',
+        module: 'Room Management',
+        details: `Deleted room ${id}`,
+      }
+    });
+
     res.json({ message: 'Room deleted successfully' });
   });
 

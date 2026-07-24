@@ -11,6 +11,7 @@ import NotificationsFeed from './_components/NotificationsFeed';
 
 export default function DashboardPage() {
   const [userName, setUserName] = useState('');
+  const [userRole, setUserRole] = useState('');
 
   useEffect(() => {
     const userStr = localStorage.getItem('hms_user');
@@ -18,6 +19,7 @@ export default function DashboardPage() {
       try {
         const user = JSON.parse(userStr);
         if (user.name) setUserName(user.name);
+        if (user.role) setUserRole(user.role);
       } catch (e) {}
     }
   }, []);
@@ -48,10 +50,12 @@ export default function DashboardPage() {
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <RevenueChart />
-        </div>
-        <div className="lg:col-span-1">
+        {userRole === 'Admin' && (
+          <div className="lg:col-span-1">
+            <RevenueChart />
+          </div>
+        )}
+        <div className={`lg:col-span-1 ${userRole !== 'Admin' ? 'lg:col-span-2' : ''}`}>
           <OccupancyChart />
         </div>
         <div className="lg:col-span-1">

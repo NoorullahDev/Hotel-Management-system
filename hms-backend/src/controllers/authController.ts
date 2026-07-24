@@ -15,13 +15,22 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const { username, password } = req.body;
   const normalizedUsername = (username || '').trim().toLowerCase();
 
-    let user = await prisma.user.findUnique({
-      where: { username: normalizedUsername },
-      include: { role: true },
+    let user = await prisma.user.findFirst({
+      where: { 
+        OR: [
+          { username: normalizedUsername },
+          { email: normalizedUsername }
+        ]
+      },
+      include: { role: true, staff: true },
     });
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (user.staff && user.staff.status === 'Inactive') {
+      return res.status(403).json({ message: 'Account disabled' });
     }
 
     // Check if account is locked
@@ -71,6 +80,15 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     const accessToken = jwt.sign(payload, JWT_SECRET as string, { expiresIn: '1h' });
     const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET as string, { expiresIn: '7d' });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'LOGIN',
+        module: 'Auth',
+        details: 'User logged in successfully',
+      }
+    });
+
     res.json({
       accessToken,
       refreshToken,
@@ -87,9 +105,10 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const { username, email, password, name, roleName } = req.body;
   const normalizedUsername = (username || '').trim().toLowerCase();
+  const normalizedEmail = (email || '').trim().toLowerCase();
 
     const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email }, { username: normalizedUsername }] }
+      where: { OR: [{ email: normalizedEmail }, { username: normalizedUsername }] }
     });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email or username already exists' });
@@ -107,7 +126,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     const newUser = await prisma.user.create({
       data: {
         username: normalizedUsername,
-        email,
+        email: normalizedEmail,
         passwordHash,
         name,
         roleId: role.id,
@@ -153,6 +172,7 @@ export const getMe = asyncHandler(async (req: AuthRequest, res: Response) => {
       username: user.username,
       email: user.email,
       role: user.role.name,
+      permissions: user.role.permissions || [],
       profilePhoto: user.profilePhoto,
       avatar: user.profilePhoto || '/images/avatar.png',
     });

@@ -11,12 +11,11 @@ import {
   getRevenueReportTable,
   exportReport,
 } from '../controllers/reportController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// Protect all report routes to Admin and Manager only
-router.use(authenticateJWT, requireRole(['Admin', 'Manager']));
+router.use(authenticateJWT, requirePermission('view_reports'));
 
 router.get('/summary', getSummary);
 router.get('/revenue', getRevenueTrend);

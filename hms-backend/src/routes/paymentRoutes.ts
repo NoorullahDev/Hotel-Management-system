@@ -1,10 +1,10 @@
 import express from 'express';
 import { processPayment } from '../controllers/paymentController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
 router.use(authenticateJWT);
-router.post('/', processPayment);
+router.post('/', requirePermission('manage_billing'), processPayment);
 
 export default router;

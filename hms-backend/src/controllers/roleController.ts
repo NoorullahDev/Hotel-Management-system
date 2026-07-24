@@ -30,10 +30,20 @@ export const updateRole = asyncHandler(async (req: Request, res: Response) => {
     if (name) data.name = name;
     if (permissions) data.permissions = permissions;
 
+    const oldRole = await prisma.role.findUnique({ where: { id } });
+
     const role = await prisma.role.update({
       where: { id },
       data
     });
+
+    if (name && oldRole && oldRole.name !== name) {
+      await prisma.staff.updateMany({
+        where: { role: oldRole.name },
+        data: { role: name }
+      });
+    }
+
     res.json(role);
   });
 

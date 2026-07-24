@@ -29,4 +29,5 @@ export const disconnectSocket = () => {
   if (socket && socket.connected) {
     socket.disconnect();
   }
+  socket = null; // Ensure new logins get a fresh socket with their new token
 };

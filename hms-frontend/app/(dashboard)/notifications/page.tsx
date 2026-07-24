@@ -153,9 +153,14 @@ export default function NotificationsPage() {
   const handleDelete = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
+      const notifToDelete = notifications.find(n => n.id === id);
       await api.delete(`/api/notifications/${id}`);
       setNotifications(prev => prev.filter(n => n.id !== id));
-      setStats(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+      setStats(prev => ({ 
+        ...prev, 
+        total: Math.max(0, prev.total - 1),
+        unread: notifToDelete && !notifToDelete.isRead ? Math.max(0, prev.unread - 1) : prev.unread
+      }));
       
       if (selectedNotification?.id === id) {
         setSelectedNotification(null);
@@ -220,7 +225,7 @@ export default function NotificationsPage() {
               onClick={() => setFilterType(tab.label)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 filterType === tab.label 
-                  ? 'bg-[#0066FF] text-white' 
+                  ? 'bg-primary text-white' 
                   : 'bg-theme-card text-theme-muted border border-theme-border hover:bg-theme-hover hover:text-theme-text'
               }`}
             >
@@ -232,7 +237,7 @@ export default function NotificationsPage() {
         
         <button 
           onClick={markAllAsRead}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0066FF] text-white text-sm font-medium rounded-lg hover:bg-primary transition-colors shrink-0 active:scale-95 shadow-md"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary transition-colors shrink-0 active:scale-95 shadow-md"
         >
           <CheckCircle size={16} /> Mark all as read
         </button>
@@ -311,8 +316,8 @@ export default function NotificationsPage() {
                     <div className="flex flex-col items-end gap-3 shrink-0">
                       <span className="text-xs text-theme-muted-light">{formatTimeAgo(n.createdAt)}</span>
                       <div className="flex items-center gap-1.5">
-                        <div className={`w-2 h-2 rounded-full ${n.isRead ? 'bg-theme-strong' : 'bg-[#0066FF]'}`}></div>
-                        <span className={`text-xs ${n.isRead ? 'text-theme-muted-light' : 'text-[#0066FF]'}`}>
+                        <div className={`w-2 h-2 rounded-full ${n.isRead ? 'bg-theme-strong' : 'bg-primary'}`}></div>
+                        <span className={`text-xs ${n.isRead ? 'text-theme-muted-light' : 'text-primary'}`}>
                           {n.isRead ? 'Read' : 'Unread'}
                         </span>
                       </div>
@@ -345,7 +350,7 @@ export default function NotificationsPage() {
                 <button 
                   key={i}
                   onClick={() => fetchNotifications(i + 1)}
-                  className={`w-8 h-8 rounded flex items-center justify-center ${currentPage === i + 1 ? 'bg-[#0066FF] text-white' : 'hover:bg-theme-hover'}`}
+                  className={`w-8 h-8 rounded flex items-center justify-center ${currentPage === i + 1 ? 'bg-primary text-white' : 'hover:bg-theme-hover'}`}
                 >
                   {i + 1}
                 </button>
@@ -354,7 +359,7 @@ export default function NotificationsPage() {
               {totalPages > 5 && (
                 <button 
                   onClick={() => fetchNotifications(totalPages)}
-                  className={`w-8 h-8 rounded flex items-center justify-center ${currentPage === totalPages ? 'bg-[#0066FF] text-white' : 'hover:bg-theme-hover'}`}
+                  className={`w-8 h-8 rounded flex items-center justify-center ${currentPage === totalPages ? 'bg-primary text-white' : 'hover:bg-theme-hover'}`}
                 >
                   {totalPages}
                 </button>
@@ -423,7 +428,7 @@ export default function NotificationsPage() {
                   <div className="mb-8">
                     <h4 className="text-sm font-semibold text-theme-text mb-4">Actions</h4>
                     <div className="grid grid-cols-2 gap-3">
-                      <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0066FF] hover:bg-primary text-white rounded-lg text-sm font-medium transition-colors active:scale-95 shadow-md">
+                      <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary text-white rounded-lg text-sm font-medium transition-colors active:scale-95 shadow-md">
                         View Details
                       </button>
                       <button className="flex items-center justify-center gap-2 px-4 py-2.5 bg-transparent border border-theme-border hover:bg-theme-hover text-theme-text rounded-lg text-sm font-medium transition-colors">
@@ -513,7 +518,7 @@ export default function NotificationsPage() {
                   checked={prefs[s.key as keyof NotificationPreference] as boolean}
                   onChange={e => updatePreference(s.key as keyof NotificationPreference, e.target.checked)}
                 />
-                <div className="w-9 h-5 bg-theme-hover peer-focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-card after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0066FF]"></div>
+                <div className="w-9 h-5 bg-theme-hover peer-focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-theme-card after:border-theme-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
           ))}

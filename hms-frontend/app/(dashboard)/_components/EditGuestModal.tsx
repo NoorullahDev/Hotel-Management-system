@@ -165,7 +165,7 @@ export default function EditGuestModal({ guest, onClose, onSuccess }: Props) {
             <button 
               type="submit"
               disabled={isSaving}
-              className="flex-1 py-2.5 bg-[#0066FF] hover:bg-primary text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 active:scale-95 shadow-md"
+              className="flex-1 py-2.5 bg-primary hover:bg-primary text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 active:scale-95 shadow-md"
             >
               {isSaving ? 'Saving Changes...' : 'Save Changes'}
             </button>

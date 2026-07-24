@@ -412,7 +412,7 @@ export default function BillingPage() {
                     <span className="text-theme-text font-medium">{currencySymbol} {folioData.subTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-theme-muted">Taxes ({taxRate}%)</span>
+                    <span className="text-theme-muted">Taxes ({folioData.taxPct ?? taxRate}%)</span>
                     <span className="text-theme-text font-medium">{currencySymbol} {folioData.taxAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs">

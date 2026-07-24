@@ -70,7 +70,7 @@ export async function apiFetch<T>(
       // Token expired or invalid and refresh failed/missing
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      localStorage.removeItem('hms_user');
       window.location.href = '/login';
     }
     throw new ApiError(401, 'Session expired');

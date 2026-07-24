@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import prisma from '../prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -48,5 +49,41 @@ export const requireRole = (roles: string[]) => {
     }
 
     next();
+  };
+};
+
+export const requirePermission = (permission: string) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (req.user.role === 'Admin') {
+      return next(); // Admin always has full access
+    }
+
+    try {
+      const userWithRole = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: { role: true }
+      });
+
+      if (!userWithRole || !userWithRole.role) {
+        return res.status(401).json({ message: 'Unauthorized: User or role not found' });
+      }
+
+      const permissions = Array.isArray(userWithRole.role.permissions) 
+        ? userWithRole.role.permissions 
+        : [];
+
+      if (!permissions.includes(permission)) {
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions' });
+      }
+
+      next();
+    } catch (err) {
+      console.error('[Permissions Middleware]', err);
+      return res.status(500).json({ message: 'Internal server error checking permissions' });
+    }
   };
 };

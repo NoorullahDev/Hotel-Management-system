@@ -160,7 +160,7 @@ export default function AddRoomModal({ onClose }: Props) {
                     setError('Image upload failed');
                   }
                 }}
-                className="flex-1 bg-theme-card shadow-soft border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-muted-light file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#0066FF] file:text-white hover:file:bg-primary cursor-pointer active:scale-95 shadow-md"
+                className="flex-1 bg-theme-card shadow-soft border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-muted-light file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary cursor-pointer active:scale-95 shadow-md"
               />
               {formData.imageUrl && (
                 <img loading="lazy" decoding="async" src={formData.imageUrl} alt="Preview" className="w-10 h-10 rounded-md object-cover border border-theme-border" />
@@ -179,7 +179,7 @@ export default function AddRoomModal({ onClose }: Props) {
             <button 
               type="submit"
               disabled={mutation.isPending}
-              className="flex-1 py-2.5 bg-[#0066FF] hover:bg-primary text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 active:scale-95 shadow-md"
+              className="flex-1 py-2.5 bg-primary hover:bg-primary text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 active:scale-95 shadow-md"
             >
               {mutation.isPending ? 'Saving...' : 'Save Room'}
             </button>

@@ -22,21 +22,22 @@ interface UserData {
   email: string;
   role: string;
   avatar: string;
+  permissions?: string[];
 }
 
 const allNavItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Restaurant'] },
-  { name: 'Rooms', href: '/rooms', icon: BedDouble, roles: ['Admin', 'Manager', 'Receptionist', 'Housekeeping'] },
-  { name: 'Booking', href: '/booking', icon: CalendarCheck, roles: ['Admin', 'Manager', 'Receptionist'] },
-  { name: 'Foreign Guests', href: '/guests', icon: Users, roles: ['Admin', 'Manager', 'Receptionist'] },
-  { name: 'Check-In', href: '/checkin', icon: LogIn, roles: ['Admin', 'Manager', 'Receptionist'] },
-  { name: 'Check-Out', href: '/checkout', icon: LogOut, roles: ['Admin', 'Manager', 'Receptionist'] },
-  { name: 'Billing', href: '/billing', icon: Receipt, roles: ['Admin', 'Manager', 'Receptionist'] },
-  { name: 'Restaurant', href: '/restaurant', icon: UtensilsCrossed, roles: ['Admin', 'Manager', 'Restaurant'] },
-  { name: 'Housekeeping', href: '/housekeeping', icon: Sparkles, roles: ['Admin', 'Manager', 'Housekeeping'] },
-  { name: 'Reports', href: '/reports', icon: FileBarChart, roles: ['Admin', 'Manager'] },
-  { name: 'Notifications', href: '/notifications', icon: Bell, roles: ['Admin', 'Manager', 'Receptionist', 'Housekeeping', 'Restaurant'] },
-  { name: 'Settings', href: '/settings', icon: Settings, roles: ['Admin'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
+  { name: 'Rooms', href: '/rooms', icon: BedDouble, permission: 'view_rooms' },
+  { name: 'Booking', href: '/booking', icon: CalendarCheck, permission: 'view_bookings' },
+  { name: 'Foreign Guests', href: '/guests', icon: Users, permission: 'manage_guests' },
+  { name: 'Check-In', href: '/checkin', icon: LogIn, permission: 'manage_bookings' },
+  { name: 'Check-Out', href: '/checkout', icon: LogOut, permission: 'manage_bookings' },
+  { name: 'Billing', href: '/billing', icon: Receipt, permission: 'manage_billing' },
+  { name: 'Restaurant', href: '/restaurant', icon: UtensilsCrossed, permission: 'manage_restaurant' },
+  { name: 'Housekeeping', href: '/housekeeping', icon: Sparkles, permission: 'manage_housekeeping' },
+  { name: 'Reports', href: '/reports', icon: FileBarChart, permission: 'view_reports' },
+  { name: 'Notifications', href: '/notifications', icon: Bell, permission: 'view_dashboard' },
+  { name: 'Settings', href: '/settings', icon: Settings, permission: 'manage_settings' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,7 +48,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     name: 'Loading...',
     role: 'Admin',
     email: '',
-    avatar: ''
+    avatar: '',
+    permissions: [] as string[]
   };
   const [loading, setLoading] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -109,7 +111,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         console.error('Failed to fetch user', err);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        router.push('/login');
+        localStorage.removeItem('hms_user');
+        window.location.href = '/login';
       } finally {
         setLoading(false);
       }
@@ -126,7 +129,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      router.push('/login');
+      localStorage.removeItem('hms_user');
+      window.location.href = '/login';
     }
   };
 
@@ -140,7 +144,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!userData) return null;
 
-  const allowedNavItems = allNavItems.filter(item => item.roles.includes(user.role));
+  const allowedNavItems = allNavItems.filter(item => {
+    if (user.role === 'Admin') return true;
+    return user.permissions && user.permissions.includes(item.permission);
+  });
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });

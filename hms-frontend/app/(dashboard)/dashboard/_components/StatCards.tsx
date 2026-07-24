@@ -1,11 +1,7 @@
 'use client';
 
 import React from 'react';
-import { LogIn, LogOut, PieChart, BedDouble, Bookmark, ArrowUp, ArrowDown } from 'lucide-react';
-
-const RsIcon = ({ size = 24 }: { size?: number }) => (
-  <span style={{ fontSize: size * 0.7, fontWeight: 'bold', lineHeight: 1 }}>Rs</span>
-);
+import { LogIn, LogOut, PieChart, BedDouble, Bookmark, ArrowUp, ArrowDown, CircleDollarSign } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -14,6 +10,17 @@ const fetchSummary = async () => {
 };
 
 export default function StatCards() {
+  const [userRole, setUserRole] = React.useState('');
+  React.useEffect(() => {
+    const userStr = localStorage.getItem('hms_user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.role) setUserRole(user.role);
+      } catch (e) {}
+    }
+  }, []);
+
   const { data } = useQuery({
     queryKey: ['dashboardSummary'],
     queryFn: fetchSummary
@@ -52,7 +59,7 @@ export default function StatCards() {
       value: data.revenue.value,
       change: data.revenue.delta,
       isPositive: data.revenue.isPositive,
-      icon: RsIcon,
+      icon: CircleDollarSign,
       iconColor: "text-white",
       iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20"
     },
@@ -78,14 +85,16 @@ export default function StatCards() {
     { title: "Today's Check-ins", value: '—', change: '0', isPositive: true, icon: LogIn, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#0066FF] to-[#0052CC] shadow-lg shadow-[#0066FF]/20" },
     { title: "Today's Check-outs", value: '—', change: '0', isPositive: true, icon: LogOut, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#8A2BE2] to-[#6A1B9A] shadow-lg shadow-[#8A2BE2]/20" },
     { title: "Occupancy Rate", value: '—', change: '0%', isPositive: true, icon: PieChart, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#00C4B5] to-[#009688] shadow-lg shadow-[#00C4B5]/20" },
-    { title: "Total Revenue", value: '—', change: '0', isPositive: true, icon: RsIcon, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20" },
+    { title: "Total Revenue", value: '—', change: '0', isPositive: true, icon: CircleDollarSign, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20" },
     { title: "Available Rooms", value: '—', change: '0', isPositive: true, icon: BedDouble, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#10B981] to-[#059669] shadow-lg shadow-[#10B981]/20" },
     { title: "Reserved Rooms", value: '—', change: '0', isPositive: true, icon: Bookmark, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#3B82F6] to-[#2563EB] shadow-lg shadow-[#3B82F6]/20" },
   ];
 
+  const visibleStats = stats.filter(stat => stat.title !== "Total Revenue" || userRole === 'Admin');
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-      {stats.map((stat, i) => (
+      {visibleStats.map((stat, i) => (
         <div key={i} className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex flex-col justify-between hover:border-theme-border transition-colors">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${stat.iconBg} ${stat.iconColor}`}>
             <stat.icon size={24} />

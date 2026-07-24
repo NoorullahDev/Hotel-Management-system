@@ -1,18 +1,18 @@
 import express from 'express';
-import { getTasks, updateTask, getStaff, createTask } from '../controllers/housekeepingController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { getTasks, updateTask, getStaff, createTask, createHousekeepingStaff } from '../controllers/housekeepingController';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// All housekeeping routes require authentication
 router.use(authenticateJWT);
 
-// Read access for Admin, Manager, and Housekeeping staff
-router.get('/staff', getStaff);
-router.get('/tasks', getTasks);
+const canManageHousekeeping = requirePermission('manage_housekeeping');
 
-// Write access restricted to Admin, Manager
-router.post('/tasks', requireRole(['Admin', 'Manager']), createTask);
-router.patch('/tasks/:id', requireRole(['Admin', 'Manager']), updateTask);
+router.get('/staff', canManageHousekeeping, getStaff);
+router.get('/tasks', canManageHousekeeping, getTasks);
+
+router.post('/staff', canManageHousekeeping, createHousekeepingStaff);
+router.post('/tasks', canManageHousekeeping, createTask);
+router.patch('/tasks/:id', canManageHousekeeping, updateTask);
 
 export default router;

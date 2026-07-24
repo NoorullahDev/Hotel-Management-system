@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import { getAuditLogs } from '../controllers/auditLogController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// Only Admins can view audit logs
-router.get('/', authenticateJWT, requireRole(['Admin']), getAuditLogs);
+router.get('/', authenticateJWT, requirePermission('manage_settings'), getAuditLogs);
 
 export default router;

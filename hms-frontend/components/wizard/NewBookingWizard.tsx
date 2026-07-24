@@ -57,13 +57,29 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     days: 1,
     guests: '2 Adults, 1 Child',
     roomType: '',
-    specialRequests: 'High floor, Non-smoking room'
+    specialRequests: 'High floor, Non-smoking room',
+    arrivalTime: '14:00',
+    departureTime: '12:00'
   });
 
   const handleDaysChange = (days: number) => {
     const checkInDate = new Date(stayDetails.checkIn);
     const newCheckOut = new Date(checkInDate.getTime() + days * 86400000);
     setStayDetails({ ...stayDetails, days, checkOut: newCheckOut.toISOString().split('T')[0] });
+  };
+
+  const handleCheckInChange = (newCheckIn: string) => {
+    const checkInDate = new Date(newCheckIn);
+    const checkOutDate = new Date(stayDetails.checkOut);
+    
+    if (checkInDate >= checkOutDate) {
+      const newCheckOut = new Date(checkInDate.getTime() + stayDetails.days * 86400000);
+      setStayDetails({ ...stayDetails, checkIn: newCheckIn, checkOut: newCheckOut.toISOString().split('T')[0] });
+    } else {
+      const diffTime = Math.abs(checkOutDate.getTime() - checkInDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      setStayDetails({ ...stayDetails, checkIn: newCheckIn, days: diffDays > 0 ? diffDays : 1 });
+    }
   };
 
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
@@ -127,18 +143,22 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const totalAmount = roomRate + taxes - discount;
 
   const handleConfirm = async () => {
-    if (!selectedRoomId) return;
+    if (!selectedRoomId || isSubmitting) return;
     setIsSubmitting(true);
     setErrorMsg('');
 
     try {
+      const checkInDateTime = `${stayDetails.checkIn}T${stayDetails.arrivalTime || '14:00'}:00`;
+      const checkOutDateTime = `${stayDetails.checkOut}T${stayDetails.departureTime || '12:00'}:00`;
+
       const payload = {
         bookingType: bookingType,
         guest: { ...guestDetails, guestType: bookingType },
         additionalGuests: additionalGuests.length > 0 ? additionalGuests : null,
         roomId: selectedRoomId,
-        checkIn: stayDetails.checkIn,
-        checkOut: stayDetails.checkOut,
+        checkIn: bookingType === 'FOREIGN' ? checkInDateTime : stayDetails.checkIn,
+        checkOut: bookingType === 'FOREIGN' ? checkOutDateTime : stayDetails.checkOut,
+        arrivalTime: bookingType === 'FOREIGN' ? checkInDateTime : undefined,
         guestCount: parseInt(stayDetails.guests) || (1 + additionalGuests.length),
         subtotal: roomRate,
         tax: taxes,
@@ -358,7 +378,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                   {step === 1 && (
                     <button 
                       onClick={() => setStep(2)} 
-                      disabled={!guestDetails.name || !guestDetails.phone}
+                      disabled={!guestDetails.name || !guestDetails.phone || (bookingType === 'FOREIGN' && !guestDetails.idNumber)}
                       className="mt-6 w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors active:scale-95 shadow-md"
                     >
                       Next <ChevronRight size={16} />
@@ -372,7 +392,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Check-in Date *</label>
-                        <input type="date" value={stayDetails.checkIn} onChange={e => setStayDetails({...stayDetails, checkIn: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary [color-scheme:dark]" />
+                        <input type="date" value={stayDetails.checkIn} onChange={e => handleCheckInChange(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary [color-scheme:dark]" />
                       </div>
                       <div>
                         <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Days of Stay</label>
@@ -387,6 +407,18 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                       <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Guests</label>
                       <input type="text" value={stayDetails.guests} onChange={e => setStayDetails({...stayDetails, guests: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary" />
                     </div>
+                    {bookingType === 'FOREIGN' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Arrival Time</label>
+                          <input type="time" value={stayDetails.arrivalTime} onChange={e => setStayDetails({...stayDetails, arrivalTime: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary [color-scheme:dark]" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Departure Time</label>
+                          <input type="time" value={stayDetails.departureTime} onChange={e => setStayDetails({...stayDetails, departureTime: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary [color-scheme:dark]" />
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Room Type Filter</label>
                       <select value={stayDetails.roomType} onChange={e => setStayDetails({...stayDetails, roomType: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary appearance-none">

@@ -18,14 +18,14 @@ async function fetchJSON(url: string) {
   return api.get<any>(url);
 }
 
-// PKR formatter — no USD $ signs
-function fmtPKR(n: number) {
-  return `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Currency formatters
+function formatCurrency(n: number, sym: string) {
+  return sym + ' ' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function fmtShort(n: number) {
-  if (n >= 1000000) return `PKR ${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `PKR ${(n / 1000).toFixed(0)}K`;
-  return `PKR ${n.toFixed(0)}`;
+function formatShort(n: number, sym: string) {
+  if (n >= 1000000) return sym + ' ' + (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return sym + ' ' + (n / 1000).toFixed(0) + 'K';
+  return sym + ' ' + n.toFixed(0);
 }
 
 function toISO(d: Date) { return d.toISOString().split("T")[0]; }
@@ -37,7 +37,7 @@ function defaultRange() {
 }
 
 // ── Custom Tooltip ─────────────────────────────────────────────────────────
-const ChartTooltip = ({ active, payload, label }: any) => {
+const ChartTooltip = ({ active, payload, label, currencySymbol = 'Rs.' }: any) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-theme-card shadow-soft border border-theme-border rounded-xl p-3 shadow-xl text-xs z-50">
@@ -46,7 +46,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
         <p key={i} style={{ color: p.color || p.fill }}>
           {p.name}: <span className="font-bold text-theme-text">
             {(p.name?.toLowerCase().includes("revenue") || p.name?.toLowerCase().includes("sales") || p.name?.toLowerCase().includes("order"))
-              ? fmtPKR(p.value)
+              ? formatCurrency(p.value, currencySymbol)
               : p.value}
           </span>
         </p>
@@ -204,7 +204,7 @@ const STAFF_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#a855f7", "#ec4899"];
 
 // ═══════════════════════════════════════════════════════════════════════════
 export default function ReportsPage() {
-  const { hotelName, hotelAddress, contactNumber, email } = useGlobalSettings();
+  const { hotelName, hotelAddress, contactNumber, email, currencySymbol = 'Rs.' } = useGlobalSettings();
   const [range, setRange] = useState(defaultRange());
   const [department, setDepartment] = useState("All Departments");
   const [roomType, setRoomType] = useState("All Room Types");
@@ -285,13 +285,13 @@ export default function ReportsPage() {
   const { revRows, revTotalRow } = useMemo(() => {
     const r = (revTable?.rows || []).map((row: any) => [
       row.date,
-      fmtPKR(row.roomsRevenue),
-      fmtPKR(row.restaurantRevenue),
-      fmtPKR(row.otherRevenue),
-      <span key={row.date} className="font-bold text-theme-text">{fmtPKR(row.total)}</span>,
+      formatCurrency(row.roomsRevenue, currencySymbol),
+      formatCurrency(row.restaurantRevenue, currencySymbol),
+      formatCurrency(row.otherRevenue, currencySymbol),
+      <span key={row.date} className="font-bold text-theme-text">{formatCurrency(row.total, currencySymbol)}</span>,
     ]);
     const t = revTable?.totals
-      ? ["Total", fmtPKR(revTable.totals.roomsRevenue), fmtPKR(revTable.totals.restaurantRevenue), fmtPKR(revTable.totals.otherRevenue), fmtPKR(revTable.totals.total)]
+      ? ["Total", formatCurrency(revTable.totals.roomsRevenue, currencySymbol), formatCurrency(revTable.totals.restaurantRevenue, currencySymbol), formatCurrency(revTable.totals.otherRevenue, currencySymbol), formatCurrency(revTable.totals.total, currencySymbol)]
       : undefined;
     return { revRows: r, revTotalRow: t };
   }, [revTable]);
@@ -334,20 +334,20 @@ export default function ReportsPage() {
 
   const restRows = restaurant.map((r: any) => [
     r.name, r.orders,
-    fmtPKR(r.revenue),
-    fmtPKR(r.foodSales),
-    fmtPKR(r.beverageSales),
-    fmtPKR(r.avgOrder),
+    formatCurrency(r.revenue, currencySymbol),
+    formatCurrency(r.foodSales, currencySymbol),
+    formatCurrency(r.beverageSales, currencySymbol),
+    formatCurrency(r.avgOrder, currencySymbol),
     r.topItem,
   ]);
   const restTotalRow = restaurant.length
     ? [
         "Total",
         restaurant.reduce((a, r) => a + r.orders, 0),
-        fmtPKR(restaurant.reduce((a, r) => a + r.revenue, 0)),
-        fmtPKR(restaurant.reduce((a, r) => a + r.foodSales, 0)),
-        fmtPKR(restaurant.reduce((a, r) => a + r.beverageSales, 0)),
-        fmtPKR(restaurant.reduce((a, r) => a + r.avgOrder, 0) / (restaurant.length || 1)),
+        formatCurrency(restaurant.reduce((a: number, r: any) => a + r.revenue, 0), currencySymbol),
+        formatCurrency(restaurant.reduce((a: number, r: any) => a + r.foodSales, 0), currencySymbol),
+        formatCurrency(restaurant.reduce((a: number, r: any) => a + r.beverageSales, 0), currencySymbol),
+        formatCurrency(restaurant.reduce((a: number, r: any) => a + r.avgOrder, 0) / (restaurant.length || 1), currencySymbol),
         "—",
       ]
     : undefined;
@@ -357,11 +357,13 @@ export default function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Print-only Hotel Header — visible only when printing */}
-      <div className="hidden print:block text-center mb-6 border-b border-gray-300 pb-4">
-        <h1 className="text-2xl font-bold text-black">{hotelName}</h1>
-        {hotelAddress && <p className="text-sm text-gray-600">{hotelAddress}</p>}
+      <div className="hidden print:block text-center mb-6 border-b border-theme-border pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-theme-text">{hotelName}</h1>
+          <p className="text-sm text-theme-muted mt-1">{hotelAddress}</p>
+        </div>
         {(contactNumber || email) && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-theme-muted">
             {[contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | ')}
           </p>
         )}
@@ -473,7 +475,7 @@ export default function ReportsPage() {
 
         {/* ── Summary Cards ─────────────────────────────────────────── */}
           <div className="flex gap-4 flex-wrap">
-            <SummaryCard title="Total Revenue" value={summary ? fmtPKR(summary.totalRevenue) : "PKR 0.00"}
+            <SummaryCard title="Total Revenue" value={summary ? formatCurrency(summary.totalRevenue, currencySymbol) : "PKR 0.00"}
               delta={summary?.revenueDelta ?? 0} icon={DollarSign} color="text-blue-400" bg="bg-blue-500/10" />
             <SummaryCard title="Occupancy Rate" value={summary ? `${summary.occupancyRate}%` : "0%"}
               delta={summary?.occupancyDelta ?? 0} icon={TrendingUp} color="text-emerald-400" bg="bg-emerald-500/10" />
@@ -495,8 +497,8 @@ export default function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                   <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => fmtShort(v)} />
-                  <Tooltip content={<ChartTooltip />} />
+                    tickFormatter={v => formatShort(v, currencySymbol)} />
+                  <Tooltip content={<ChartTooltip currencySymbol={currencySymbol} />} />
                   <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#6366f1"
                     strokeWidth={2.5} dot={{ r: 4, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 6 }} />
                   {department === "All Departments" && (
@@ -550,7 +552,7 @@ export default function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                   <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip />} />
+                  <Tooltip content={<ChartTooltip currencySymbol={currencySymbol} />} />
                   <Bar dataKey="bookings" name="Bookings" fill="#6366f1" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -566,8 +568,8 @@ export default function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                   <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => fmtShort(v)} />
-                  <Tooltip content={<ChartTooltip />} />
+                    tickFormatter={v => formatShort(v, currencySymbol)} />
+                  <Tooltip content={<ChartTooltip currencySymbol={currencySymbol} />} />
                   <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#22c55e"
                     strokeWidth={2.5} dot={{ r: 4, fill: "#22c55e", strokeWidth: 0 }} activeDot={{ r: 6 }} />
                 </LineChart>
@@ -615,7 +617,7 @@ export default function ReportsPage() {
                         ))}
                       </Pie>
                       <text x="50%" y="43%" textAnchor="middle" dominantBaseline="middle"
-                        fill="var(--theme-text)" fontSize={12} fontWeight={700}>{fmtShort(filteredRevByDept?.total || 0)}</text>
+                        fill="var(--theme-text)" fontSize={12} fontWeight={700}>{formatShort(filteredRevByDept?.total || 0, currencySymbol)}</text>
                       <text x="50%" y="57%" textAnchor="middle" dominantBaseline="middle"
                         fill="#94a3b8" fontSize={9}>Total Revenue</text>
                     </PieChart>
@@ -629,7 +631,7 @@ export default function ReportsPage() {
                         <span className="text-theme-muted">{d.name}</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-theme-text font-bold">{fmtPKR(d.value)}</span>
+                        <span className="text-theme-text font-bold">{formatCurrency(d.value, currencySymbol)}</span>
                         <span className="text-theme-muted-light ml-1">({d.percentage}%)</span>
                       </div>
                     </div>
@@ -649,8 +651,8 @@ export default function ReportsPage() {
               onViewFull={() => setFullModal({
                 title: "Revenue Report — Full Data",
                 headers: ["Date", "Rooms Revenue", "Restaurant Revenue", "Other Revenue", "Total"],
-                rows: (revTable?.rows || []).map((r: any) => [r.date, fmtPKR(r.roomsRevenue), fmtPKR(r.restaurantRevenue), fmtPKR(r.otherRevenue), fmtPKR(r.total)]),
-                totalRow: revTable?.totals ? ["Total", fmtPKR(revTable.totals.roomsRevenue), fmtPKR(revTable.totals.restaurantRevenue), fmtPKR(revTable.totals.otherRevenue), fmtPKR(revTable.totals.total)] : undefined,
+                rows: (revTable?.rows || []).map((r: any) => [r.date, formatCurrency(r.roomsRevenue, currencySymbol), formatCurrency(r.restaurantRevenue, currencySymbol), formatCurrency(r.otherRevenue, currencySymbol), formatCurrency(r.total, currencySymbol)]),
+                totalRow: revTable?.totals ? ["Total", formatCurrency(revTable.totals.roomsRevenue, currencySymbol), formatCurrency(revTable.totals.restaurantRevenue, currencySymbol), formatCurrency(revTable.totals.otherRevenue, currencySymbol), formatCurrency(revTable.totals.total, currencySymbol)] : undefined,
               })}
             />
             <DataTable
@@ -688,7 +690,7 @@ export default function ReportsPage() {
             onViewFull={() => setFullModal({
               title: "Restaurant Report — Full Data",
               headers: ["Date", "Total Orders", "Total Sales", "Food Sales", "Beverage Sales", "Avg Order Value", "Top Item"],
-              rows: restaurant.map(r => [r.name, r.orders, fmtPKR(r.revenue), fmtPKR(r.foodSales), fmtPKR(r.beverageSales), fmtPKR(r.avgOrder), r.topItem]),
+              rows: restaurant.map(r => [r.name, r.orders, formatCurrency(r.revenue, currencySymbol), formatCurrency(r.foodSales, currencySymbol), formatCurrency(r.beverageSales, currencySymbol), formatCurrency(r.avgOrder, currencySymbol), r.topItem]),
               totalRow: restTotalRow,
             })}
           />
@@ -706,7 +708,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                 <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 5]} tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={<ChartTooltip currencySymbol={currencySymbol} />} />
                 <Line type="monotone" dataKey="rating" name="Rating" stroke="#f59e0b"
                   strokeWidth={2.5} dot={{ r: 5, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 7 }}>
                   <LabelList dataKey="rating" position="top"

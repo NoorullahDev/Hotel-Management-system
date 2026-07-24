@@ -12,26 +12,26 @@ import {
   createRoomType,
   logRoomMaintenance
 } from '../controllers/roomController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
 router.use(authenticateJWT);
 
-router.get('/status-grid', getRoomsStatusGrid);
-router.get('/types', getRoomTypes);
-router.get('/availability', getRoomsAvailability);
-router.get('/', getRooms);
-router.get('/:id', getRoomById);
+const canViewRooms = requirePermission('view_rooms');
+const canManageRooms = requirePermission('manage_rooms');
 
-// Protected routes (Admin or Manager)
-const requireAdminOrManager = requireRole(['Admin', 'Manager']);
+router.get('/status-grid', canViewRooms, getRoomsStatusGrid);
+router.get('/types', canViewRooms, getRoomTypes);
+router.get('/availability', canViewRooms, getRoomsAvailability);
+router.get('/', canViewRooms, getRooms);
+router.get('/:id', canViewRooms, getRoomById);
 
-router.post('/', requireAdminOrManager, createRoom);
-router.post('/types', requireAdminOrManager, createRoomType);
-router.patch('/:id', requireAdminOrManager, updateRoom);
-router.patch('/:id/status', requireAdminOrManager, updateRoomStatus);
-router.post('/:id/maintenance', requireAdminOrManager, logRoomMaintenance);
-router.delete('/:id', requireAdminOrManager, deleteRoom);
+router.post('/', canManageRooms, createRoom);
+router.post('/types', canManageRooms, createRoomType);
+router.patch('/:id', canManageRooms, updateRoom);
+router.patch('/:id/status', canManageRooms, updateRoomStatus);
+router.post('/:id/maintenance', canManageRooms, logRoomMaintenance);
+router.delete('/:id', canManageRooms, deleteRoom);
 
 export default router;

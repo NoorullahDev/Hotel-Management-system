@@ -6,6 +6,7 @@ interface Props {
   settings: any;
   onSettingsChange: (category: string, key: string, value: any) => void;
   onSave: (category: string) => Promise<void>;
+  setHasUnsavedChanges?: (val: boolean) => void;
 }
 
 const CURRENCIES = ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR', 'INR', 'BDT'];
@@ -20,7 +21,7 @@ const SYMBOLS: Record<string, string> = {
   'BDT': '৳'
 };
 
-export default function CurrencyTab({ settings, onSettingsChange, onSave }: Props) {
+export default function CurrencyTab({ settings, onSettingsChange, onSave, setHasUnsavedChanges }: Props) {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -29,6 +30,7 @@ export default function CurrencyTab({ settings, onSettingsChange, onSave }: Prop
   const handleCurrencyChange = (curr: string) => {
     onSettingsChange('hotel', 'currency', curr);
     onSettingsChange('hotel', 'currencySymbol', SYMBOLS[curr] || curr);
+    setHasUnsavedChanges?.(true);
   };
 
   const handleSave = async () => {
@@ -36,6 +38,7 @@ export default function CurrencyTab({ settings, onSettingsChange, onSave }: Prop
     await onSave('hotel');
     setSaving(false);
     setSuccess(true);
+    setHasUnsavedChanges?.(false);
     setTimeout(() => setSuccess(false), 3000);
   };
 
@@ -68,7 +71,7 @@ export default function CurrencyTab({ settings, onSettingsChange, onSave }: Prop
             <input
               type="text"
               value={get('currencySymbol', 'Rs.')}
-              onChange={e => onSettingsChange('hotel', 'currencySymbol', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'currencySymbol', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
               placeholder="e.g. $, Rs."
             />

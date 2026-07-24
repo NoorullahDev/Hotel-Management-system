@@ -52,8 +52,27 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
   // Clone to avoid mutating the original if reused
   const invoiceItems = [...items];
 
-  if (discount > 0) {
-    invoiceItems.push({ description: 'Discount', amount: new Decimal(-discount) });
+  // Try to find existing invoice to preserve discount if not explicitly provided
+  let existingInvoice = await tx.invoice.findUnique({
+    where: { bookingId: booking.id },
+    include: { items: true }
+  });
+
+  let finalDiscount = discount;
+  if (existingInvoice && finalDiscount === 0) {
+    const discountItem = existingInvoice.items.find((i: any) => i.description === 'Discount');
+    if (discountItem) {
+      finalDiscount = Number(discountItem.amount) * -1; // amount is negative
+    }
+  }
+
+  if (finalDiscount > 0) {
+    invoiceItems.push({ description: 'Discount', amount: new Decimal(-finalDiscount) });
+  }
+
+  if (existingInvoice) {
+    await tx.invoiceItem.deleteMany({ where: { invoiceId: existingInvoice.id } });
+    await tx.invoice.delete({ where: { id: existingInvoice.id } });
   }
 
   return tx.invoice.create({
@@ -81,22 +100,27 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
       }
     });
 
-    let invoice = await tx.invoice.findUnique({ 
-      where: { bookingId }, 
-      include: { items: true } 
-    });
+    if (booking.status === 'CHECKED_OUT') {
+      throw new Error('Booking is already checked out');
+    }
 
-    // Guarantee an invoice exists — don't rely on a prior separate call.
-    if (!invoice) {
-      invoice = await generateInvoice(tx, booking);
+    // Always regenerate invoice to capture any new food orders added since last check
+    const invoice = await generateInvoice(tx, booking);
+
+    const totalAmount = invoice.items.reduce((sum: Prisma.Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
+    const existingPaid = booking.payments.reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
+    const balanceDue = totalAmount.minus(existingPaid);
+    const paymentAmount = new Decimal(amount);
+
+    if (paymentAmount.gt(balanceDue)) {
+      throw new Error('Payment amount exceeds remaining balance');
     }
 
     const payment = await tx.payment.create({
       data: { bookingId, amount, method }
     });
 
-    const totalAmount = invoice!.items.reduce((sum: Prisma.Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
-    const paidAmount = [...booking.payments, payment].reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
+    const paidAmount = existingPaid.plus(paymentAmount);
 
     let checkedOut = false;
     let updatedBooking = null;
@@ -107,7 +131,7 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
     }
 
     return { payment, checkedOut, updatedBooking, invoice };
-  });
+  }, { isolationLevel: 'Serializable' });
 
   if (result.checkedOut && result.updatedBooking) {
     emitToHotel('main', 'booking:checked_out', { bookingId });

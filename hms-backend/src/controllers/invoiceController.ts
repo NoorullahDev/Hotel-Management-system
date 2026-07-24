@@ -106,7 +106,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     const tax    = await getTaxSettings();
     const taxRate = tax.rate;
     const taxName = tax.name;
-    const taxPct  = taxRate * 100;
+    let taxPct  = taxRate * 100;
 
     // Helper to handle Prisma Decimals OR raw numbers
     const getNumber = (val: any): number => {
@@ -148,6 +148,13 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
       discountAmount = storedDiscount;
       grandTotal = subTotal + taxAmount + discountAmount;
       receiptItems = chargeItems;
+      
+      // Calculate historical tax percentage
+      if (subTotal > 0 && taxAmount > 0) {
+        taxPct = Math.round((taxAmount / subTotal) * 100);
+      } else if (taxAmount === 0) {
+        taxPct = 0;
+      }
     } else {
       // Calculate on the fly from booking data
       const ciDate = new Date(booking.checkIn);
@@ -252,8 +259,8 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     // TOTALS
     leftRight(doc, 'Subtotal:', `${currencySymbol} ${subTotal.toFixed(2)}`, 8, true);
     leftRight(doc, `Tax (${taxPct}%):`, `${currencySymbol} ${taxAmount.toFixed(2)}`, 8, false);
-    if (discountAmount > 0) {
-      leftRight(doc, 'Discount:', `-${currencySymbol} ${discountAmount.toFixed(2)}`, 8, false);
+    if (discountAmount < 0) {
+      leftRight(doc, 'Discount:', `-${currencySymbol} ${Math.abs(discountAmount).toFixed(2)}`, 8, false);
     }
     
     doc.moveDown(0.2);

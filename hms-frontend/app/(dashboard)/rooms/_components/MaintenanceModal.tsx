@@ -85,7 +85,7 @@ export default function MaintenanceModal({ room, onClose }: Props) {
             <button 
               type="submit"
               disabled={mutation.isPending || !description.trim()}
-              className="flex-1 py-2.5 bg-theme-strong hover:bg-slate-500 text-theme-text text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+              className="flex-1 py-2.5 bg-theme-strong hover:bg-theme-hover text-theme-text text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
             >
               {mutation.isPending ? 'Submitting...' : 'Submit Report'}
             </button>

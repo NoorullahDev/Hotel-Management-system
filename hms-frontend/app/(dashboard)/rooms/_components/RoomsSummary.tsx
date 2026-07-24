@@ -37,7 +37,7 @@ export default function RoomsSummary({ filters }: { filters: any }) {
   };
 
   const cards = [
-    { label: `Total Rooms (Cap: ${configuredCapacity})`, value: stats.total, pct: '100%', icon: BedDouble, iconColor: 'text-[#0066FF]', iconBg: 'bg-[#0066FF]/10', pctColor: 'text-[#0066FF]' },
+    { label: `Total Rooms (Cap: ${configuredCapacity})`, value: stats.total, pct: '100%', icon: BedDouble, iconColor: 'text-primary', iconBg: 'bg-primary/10', pctColor: 'text-primary' },
     { label: 'Available Rooms', value: stats.available, pct: getPercentage(stats.available), icon: CheckCircle2, iconColor: 'text-green-500', iconBg: 'bg-green-500/10', pctColor: 'text-green-500' },
     { label: 'Occupied Rooms', value: stats.occupied, pct: getPercentage(stats.occupied), icon: UserCheck, iconColor: 'text-red-500', iconBg: 'bg-red-500/10', pctColor: 'text-red-500' },
     { label: 'Reserved Rooms', value: stats.reserved, pct: getPercentage(stats.reserved), icon: Bookmark, iconColor: 'text-blue-400', iconBg: 'bg-blue-500/10', pctColor: 'text-blue-400' },

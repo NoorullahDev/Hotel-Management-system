@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Key, Mail, CheckCircle, LogOut, Loader2, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 
-export default function SecurityTab() {
+export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedChanges?: (val: boolean) => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,11 +17,12 @@ export default function SecurityTab() {
   const [logoutLoading, setLogoutLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch current email
+    // Fetch current login username
     const fetchUser = async () => {
       try {
         const data = await api.get<any>('/api/settings/account');
-        setCurrentUsername(data.email || '');
+        // username is the primary login credential; fall back to email if username is not set
+        setCurrentUsername(data.username || data.email || '');
       } catch (err) {
         console.error(err);
       }
@@ -51,10 +52,12 @@ export default function SecurityTab() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setHasUnsavedChanges?.(false);
       
       setTimeout(() => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('hms_user');
         window.location.href = '/login';
       }, 2000);
     } catch (err: any) {
@@ -76,12 +79,14 @@ export default function SecurityTab() {
       await api.post('/api/settings/account/change-email', { newEmail: newUsername });
 
       setUsernameSuccess('Username updated successfully. Please log in again with your new username.');
-      setCurrentUsername(newUsername);
+      setCurrentUsername(newUsername.trim().toLowerCase());
       setNewUsername('');
+      setHasUnsavedChanges?.(false);
       
       setTimeout(() => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        localStorage.removeItem('hms_user');
         window.location.href = '/login';
       }, 2000);
     } catch (err: any) {
@@ -96,6 +101,7 @@ export default function SecurityTab() {
 
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('hms_user');
       window.location.href = '/login';
     } catch (err) {
       console.error(err);
@@ -129,7 +135,7 @@ export default function SecurityTab() {
               <input
                 type="text"
                 value={newUsername}
-                onChange={e => setNewUsername(e.target.value)}
+                onChange={e => { setNewUsername(e.target.value); setHasUnsavedChanges?.(true); }}
                 className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
                 placeholder="newusername"
                 required
@@ -159,15 +165,15 @@ export default function SecurityTab() {
           <form onSubmit={handleUpdatePassword} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-theme-muted mb-1.5">Current Password</label>
-              <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
+              <input type="password" value={currentPassword} onChange={e => { setCurrentPassword(e.target.value); setHasUnsavedChanges?.(true); }} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-theme-muted mb-1.5">New Password</label>
-              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
+              <input type="password" value={newPassword} onChange={e => { setNewPassword(e.target.value); setHasUnsavedChanges?.(true); }} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-theme-muted mb-1.5">Confirm New Password</label>
-              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
+              <input type="password" value={confirmPassword} onChange={e => { setConfirmPassword(e.target.value); setHasUnsavedChanges?.(true); }} className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors" required />
             </div>
             <button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-medium p-3 rounded-xl transition-colors active:scale-95 shadow-md">
               Update Password

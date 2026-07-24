@@ -73,10 +73,16 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'No active CHECKED_IN booking found for this room' });
     }
 
+    let hasInvalidQuantity = false;
     let totalAmount = 0;
     const orderItemsData = items.map((item: any) => {
       const price = parseFloat(item.price);
       const quantity = parseInt(item.quantity, 10);
+      
+      if (isNaN(quantity) || quantity <= 0) {
+        hasInvalidQuantity = true;
+      }
+      
       totalAmount += price * quantity;
       return {
         itemName: item.name,
@@ -84,6 +90,10 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
         price
       };
     });
+
+    if (hasInvalidQuantity) {
+      return res.status(400).json({ message: 'Item quantity must be greater than zero' });
+    }
 
     const order = await prisma.foodOrder.create({
       data: {

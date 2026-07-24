@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { ChevronDown, ArrowUp } from 'lucide-react';
+import { ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -16,7 +16,15 @@ export default function RevenueChart() {
     queryFn: fetchRevenue
   });
 
+  const { data: summaryData } = useQuery({
+    queryKey: ['dashboardSummary'],
+    queryFn: async () => await api.get<any>('/api/dashboard/summary')
+  });
+
   const latestRevenue = data && data.length > 0 ? data[data.length - 1].revenue : 0;
+  const delta = summaryData ? summaryData.revenue.delta : '0%';
+  const isPositive = summaryData ? summaryData.revenue.isPositive : true;
+  const currencySymbol = summaryData ? summaryData.revenue.value.split(' ')[0] : 'Rs.';
 
   return (
     <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-6 h-full flex flex-col">
@@ -29,9 +37,10 @@ export default function RevenueChart() {
 
       <div className="mb-6">
         <div className="flex items-end gap-3">
-          <span className="text-3xl font-bold text-theme-text">Rs. {latestRevenue.toLocaleString()}</span>
-          <span className="flex items-center text-sm font-medium text-green-500 mb-1">
-            <ArrowUp size={14} className="mr-0.5" /> 15.7% <span className="text-theme-muted-light ml-1">vs last week</span>
+          <span className="text-3xl font-bold text-theme-text">{currencySymbol} {latestRevenue.toLocaleString()}</span>
+          <span className={`flex items-center text-sm font-medium mb-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+            {isPositive ? <ArrowUp size={14} className="mr-0.5" /> : <ArrowDown size={14} className="mr-0.5" />} {delta} 
+            <span className="text-theme-muted-light ml-1">vs yesterday</span>
           </span>
         </div>
       </div>
@@ -57,12 +66,12 @@ export default function RevenueChart() {
               axisLine={false} 
               tickLine={false} 
               tick={{ fill: '#64748b', fontSize: 12 }}
-              tickFormatter={(value) => `Rs.${value/1000}k`}
+              tickFormatter={(value) => `${currencySymbol}${value/1000}k`}
             />
             <Tooltip 
               contentStyle={{ backgroundColor: 'hsl(var(--theme-card))', borderColor: 'hsl(var(--theme-border))', borderRadius: '8px', color: 'hsl(var(--theme-text))' }}
               itemStyle={{ color: 'hsl(var(--theme-text))' }}
-              formatter={(value: any) => [`Rs. ${Number(value).toLocaleString()}`, 'Revenue']}
+              formatter={(value: any) => [`${currencySymbol} ${Number(value).toLocaleString()}`, 'Revenue']}
             />
             <Area 
               type="monotone" 

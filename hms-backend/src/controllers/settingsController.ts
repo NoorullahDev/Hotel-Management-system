@@ -62,6 +62,24 @@ export const updateSettings = asyncHandler(async (req: AuthRequest, res: Respons
       return res.status(400).json({ message: 'Invalid payload' });
     }
 
+    if (category === 'general') {
+      if (updates.hotelName !== undefined && typeof updates.hotelName === 'string' && updates.hotelName.trim() === '') {
+        return res.status(400).json({ message: 'Hotel Name cannot be empty' });
+      }
+      if (updates.loginHeadingMain !== undefined && typeof updates.loginHeadingMain === 'string' && updates.loginHeadingMain.trim() === '') {
+        return res.status(400).json({ message: 'Main Login Heading cannot be empty' });
+      }
+    }
+
+    if (category === 'tax') {
+      if (updates.rate !== undefined) {
+        const rateNum = parseFloat(updates.rate as string);
+        if (isNaN(rateNum) || rateNum < 0 || rateNum > 100) {
+          return res.status(400).json({ message: 'Invalid tax rate. Must be between 0 and 100.' });
+        }
+      }
+    }
+
     // Batch upserts sequentially (SQLite doesn't support parallel writes)
     for (const [key, value] of Object.entries(updates)) {
       const safeValue = (typeof value === 'object' && value !== null) ? value : JSON.stringify(value);
@@ -159,34 +177,52 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
     res.json({ message: 'Password changed successfully' });
   });
 
-// ── Change Email ────────────────────────────────────────────────────────────
+// ── Change Username ("email" field in UI is actually the login username) ────
 
 export const changeEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user!.userId;
     const { newEmail } = req.body as { newEmail: string };
 
-    if (!newEmail) {
-      return res.status(400).json({ message: 'New email is required' });
+    if (!newEmail || newEmail.trim() === '') {
+      return res.status(400).json({ message: 'New username is required' });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email: newEmail } });
-    if (existingUser && existingUser.id !== userId) {
+    const normalizedUsername = newEmail.trim().toLowerCase();
+
+    if (normalizedUsername.length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters' });
+    }
+
+    // Check if the username is already taken by another user (check both username and email columns)
+    const [existingByUsername, existingByEmail] = await Promise.all([
+      prisma.user.findUnique({ where: { username: normalizedUsername } }),
+      prisma.user.findUnique({ where: { email: normalizedUsername } }),
+    ]);
+
+    if ((existingByUsername && existingByUsername.id !== userId) ||
+        (existingByEmail && existingByEmail.id !== userId)) {
       return res.status(400).json({ message: 'Username is already in use by another account' });
     }
 
-    const user = await prisma.user.update({ where: { id: userId }, data: { email: newEmail } });
+    // Update BOTH username and email so login works with the new value
+    // regardless of which column the auth lookup matches first
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { username: normalizedUsername, email: normalizedUsername },
+    });
 
     await prisma.auditLog.create({
       data: {
         userId,
         action:  'UPDATE_PROFILE',
         module:  'Settings',
-        details: `Changed account email to ${newEmail}`,
+        details: `Changed login username to ${normalizedUsername}`,
       },
     });
 
-    res.json({ message: 'Email changed successfully', email: user.email });
+    res.json({ message: 'Username changed successfully', email: user.email, username: user.username });
   });
+
 
 // ── Shared backup data collector ─────────────────────────────────────────────
 

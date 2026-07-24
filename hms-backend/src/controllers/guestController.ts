@@ -19,6 +19,7 @@ export const getGuests = asyncHandler(async (req: Request, res: Response) => {
         { name: { contains: s } },
         { email: { contains: s } },
         { phone: { contains: s } },
+        { idNumber: { contains: s } },
       ];
     }
 

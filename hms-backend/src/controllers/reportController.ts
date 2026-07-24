@@ -10,6 +10,13 @@ function getDateRange(req: Request): { start: Date; end: Date } {
   const start = req.query.startDate ? new Date(req.query.startDate as string) : new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
+  
+  if (start.getTime() > end.getTime()) {
+    const error = new Error('Start date cannot be after end date') as any;
+    error.statusCode = 400;
+    throw error;
+  }
+  
   return { start, end };
 }
 
@@ -57,9 +64,9 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
 
     const totalRevenue   = revCur._sum.amount?.toNumber()  ?? 0;
     const prevRevenue    = revPrev._sum.amount?.toNumber()  ?? 0;
-    const revDelta       = prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : '0.0';
+    const revDelta       = prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : (totalRevenue > 0 ? '100.0' : '0.0');
     const occupancyRate  = totalRooms  > 0 ? (((occupiedRooms + reservedRooms) / totalRooms) * 100).toFixed(1) : '0.0';
-    const bookDelta      = bookPrev    > 0 ? (((bookCur - bookPrev) / bookPrev) * 100).toFixed(1) : '0.0';
+    const bookDelta      = bookPrev    > 0 ? (((bookCur - bookPrev) / bookPrev) * 100).toFixed(1) : (bookCur > 0 ? '100.0' : '0.0');
 
     // Average length of stay — fetch once with select (minimal columns)
     const stayBookings = await prisma.booking.findMany({
@@ -77,7 +84,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
     const prevSatisfaction = feedPrev._avg.rating ?? 0;
     const satDelta         = prevSatisfaction > 0
       ? ((parseFloat(satisfaction) - prevSatisfaction) / prevSatisfaction * 100).toFixed(1)
-      : '0.0';
+      : (parseFloat(satisfaction) > 0 ? '100.0' : '0.0');
 
     res.json({
       totalRevenue,
@@ -129,11 +136,14 @@ export const getRevenueTrend = asyncHandler(async (req: Request, res: Response) 
     const data = eachDay(start, end).map(day => {
       const k    = dayKey(day);
       const total = revenueByDay.get(k) ?? 0;
-      const food  = foodByDay.get(k)    ?? 0;
+      let food  = foodByDay.get(k)    ?? 0;
+      
+      if (food > total) food = total;
+      
       return {
         name:              formatDateLabel(day),
         revenue:           total,
-        roomRevenue:       Math.max(0, total - food),
+        roomRevenue:       total - food,
         restaurantRevenue: food,
       };
     });
@@ -170,27 +180,39 @@ export const getOccupancyRate = asyncHandler(async (req: Request, res: Response)
     ];
 
     // Daily occupancy table — 2 booking counts per day (CHECKED_IN + CONFIRMED)
-    const dailyData = await Promise.all(
-      days.map(async (day) => {
-        const dayEnd = new Date(day);
-        dayEnd.setHours(23, 59, 59, 999);
+    const allBookings = await prisma.booking.findMany({
+      where: {
+        status: { in: ['CHECKED_IN', 'CONFIRMED'] },
+        checkIn: { lte: end },
+        checkOut: { gte: start }
+      },
+      select: { checkIn: true, checkOut: true, status: true }
+    });
 
-        const [checkedIn, res2] = await Promise.all([
-          prisma.booking.count({ where: { status: 'CHECKED_IN',  checkIn: { lte: dayEnd }, checkOut: { gte: day } } }),
-          prisma.booking.count({ where: { status: 'CONFIRMED',   checkIn: { lte: dayEnd }, checkOut: { gte: day } } }),
-        ]);
+    const dailyData = days.map((day) => {
+      const dayEnd = new Date(day);
+      dayEnd.setHours(23, 59, 59, 999);
 
-        return {
-          date:         formatDateLabel(day),
-          occupied:     checkedIn,
-          available:    Math.max(0, totalRooms - checkedIn - res2),
-          reserved:     res2,
-          occupancyPct: totalRooms > 0 ? ((checkedIn / totalRooms) * 100).toFixed(1) : '0.0',
-        };
-      })
-    );
+      let checkedIn = 0;
+      let res2 = 0;
 
-    res.json({ donut, table: dailyData, occupancyRate: ((occupied / total) * 100).toFixed(1) });
+      for (const b of allBookings) {
+        if (b.checkIn <= dayEnd && b.checkOut >= day) {
+          if (b.status === 'CHECKED_IN') checkedIn++;
+          if (b.status === 'CONFIRMED') res2++;
+        }
+      }
+
+      return {
+        date:         formatDateLabel(day),
+        occupied:     checkedIn,
+        available:    Math.max(0, totalRooms - checkedIn - res2),
+        reserved:     res2,
+        occupancyPct: totalRooms > 0 ? (((checkedIn + res2) / totalRooms) * 100).toFixed(1) : '0.0',
+      };
+    });
+
+    res.json({ donut, table: dailyData, occupancyRate: total > 0 ? (((occupied + reserved) / total) * 100).toFixed(1) : '0.0' });
   });
 
 // ─── GET /api/reports/bookings-overview ──────────────────────────────────────
@@ -332,13 +354,40 @@ export const getRevenueByDepartment = asyncHandler(async (req: Request, res: Res
     const { start, end } = getDateRange(req);
 
     const [payments, foodOrders] = await Promise.all([
-      prisma.payment.aggregate({ _sum: { amount: true }, where: { createdAt: { gte: start, lte: end } } }),
-      prisma.foodOrder.aggregate({ _sum: { totalAmount: true }, where: { createdAt: { gte: start, lte: end } } }),
+      prisma.payment.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { amount: true, createdAt: true },
+      }),
+      prisma.foodOrder.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        select: { totalAmount: true, createdAt: true },
+      }),
     ]);
 
-    const grandTotal       = payments._sum.amount?.toNumber()       ?? 0;
-    const restaurantRevenue = foodOrders._sum.totalAmount?.toNumber() ?? 0;
-    const roomsRevenue     = Math.max(0, grandTotal - restaurantRevenue);
+    const revenueByDay = new Map<string, number>();
+    const foodByDay    = new Map<string, number>();
+
+    for (const p of payments) {
+      const k = dayKey(p.createdAt);
+      revenueByDay.set(k, (revenueByDay.get(k) ?? 0) + p.amount.toNumber());
+    }
+    for (const f of foodOrders) {
+      const k = dayKey(f.createdAt);
+      foodByDay.set(k, (foodByDay.get(k) ?? 0) + f.totalAmount.toNumber());
+    }
+
+    let grandTotal = 0;
+    let restaurantRevenue = 0;
+
+    for (const day of eachDay(start, end)) {
+      const k = dayKey(day);
+      const dayTotal = revenueByDay.get(k) ?? 0;
+      let dayFood = foodByDay.get(k) ?? 0;
+      if (dayFood > dayTotal) dayFood = dayTotal;
+      grandTotal += dayTotal;
+      restaurantRevenue += dayFood;
+    }
+    const roomsRevenue = grandTotal - restaurantRevenue;
 
     const data = [
       { name: 'Rooms',      value: roomsRevenue,      percentage: grandTotal > 0 ? ((roomsRevenue      / grandTotal) * 100).toFixed(1) : '0.0', color: '#6366f1' },
@@ -351,23 +400,22 @@ export const getRevenueByDepartment = asyncHandler(async (req: Request, res: Res
 // ─── GET /api/reports/guest-satisfaction ─────────────────────────────────────
 
 export const getGuestSatisfaction = asyncHandler(async (req: Request, res: Response) => {
-    const today = new Date();
+    const { start, end } = getDateRange(req);
     const data  = [];
 
-    for (let i = 3; i >= 0; i--) {
-      const weekEnd = new Date(today);
-      weekEnd.setDate(today.getDate() - i * 7);
-      weekEnd.setHours(23, 59, 59, 999);
-      const weekStart = new Date(weekEnd);
-      weekStart.setDate(weekEnd.getDate() - 6);
-      weekStart.setHours(0, 0, 0, 0);
+    const diff = end.getTime() - start.getTime();
+    const segment = diff / 4;
+
+    for (let i = 0; i < 4; i++) {
+      const segStart = new Date(start.getTime() + i * segment);
+      const segEnd = new Date(start.getTime() + (i + 1) * segment - 1);
 
       const result = await prisma.feedback.aggregate({
         _avg: { rating: true },
-        where: { booking: { createdAt: { gte: weekStart, lte: weekEnd } } },
+        where: { booking: { createdAt: { gte: segStart, lte: segEnd } } },
       });
 
-      const label = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      const label = `${formatDateLabel(segStart)} - ${formatDateLabel(segEnd)}`;
       data.push({ name: label, rating: result._avg.rating ? parseFloat(result._avg.rating.toFixed(1)) : 0.0 });
     }
 
@@ -411,8 +459,9 @@ export const getRevenueReportTable = asyncHandler(async (req: Request, res: Resp
     const rows = eachDay(start, end).map(day => {
       const k        = dayKey(day);
       const total    = revenueByDay.get(k) ?? 0;
-      const restRev  = foodByDay.get(k)    ?? 0;
-      const roomRev  = Math.max(0, total - restRev);
+      let restRev  = foodByDay.get(k)    ?? 0;
+      if (restRev > total) restRev = total;
+      const roomRev  = total - restRev;
 
       totalRooms      += roomRev;
       totalRestaurant += restRev;
@@ -472,11 +521,18 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
     const headers = ['Date', 'Rooms Revenue', 'Restaurant Revenue', 'Other Revenue', 'Total'];
     const csvRows: string[][] = [];
 
+    let sumRooms = 0, sumRest = 0, sumTotal = 0;
+
     for (const day of eachDay(start, end)) {
       const k       = dayKey(day);
       const total   = revenueByDay.get(k) ?? 0;
-      const restRev = foodByDay.get(k)    ?? 0;
-      const roomRev = Math.max(0, total - restRev);
+      let restRev = foodByDay.get(k)    ?? 0;
+      if (restRev > total) restRev = total;
+      const roomRev = total - restRev;
+
+      sumRooms += roomRev;
+      sumRest  += restRev;
+      sumTotal += total;
 
       csvRows.push([
         formatDateLabel(day),
@@ -486,6 +542,14 @@ export const exportReport = asyncHandler(async (req: Request, res: Response) => 
         total.toFixed(2),
       ]);
     }
+
+    csvRows.push([
+      'Total',
+      sumRooms.toFixed(2),
+      sumRest.toFixed(2),
+      '0.00',
+      sumTotal.toFixed(2),
+    ]);
 
     const csv = [headers, ...csvRows]
       .map(row => row.map(cell => `"${cell}"`).join(','))

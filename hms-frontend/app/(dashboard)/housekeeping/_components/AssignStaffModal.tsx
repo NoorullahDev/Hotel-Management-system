@@ -91,7 +91,7 @@ export default function AssignStaffModal({ onClose, staffList, onAssign }: any) 
                   required
                 >
                   <option value="">-- Choose Room --</option>
-                  {(Array.isArray(rooms?.data) ? rooms.data : Array.isArray(rooms) ? rooms : []).map((r: any) => (
+                  {(rooms?.data?.data ? rooms.data.data : rooms?.data ? rooms.data : Array.isArray(rooms) ? rooms : []).map((r: any) => (
                     <option key={r.id} value={r.id}>Room {r.number} ({r.status})</option>
                   ))}
                 </select>
@@ -115,19 +115,21 @@ export default function AssignStaffModal({ onClose, staffList, onAssign }: any) 
           </div>
 
           <div className="grid grid-cols-2 gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Assign Staff (Optional)</label>
-              <select 
-                className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary"
-                value={staffId}
-                onChange={e => setStaffId(e.target.value)}
-              >
-                <option value="">-- Unassigned --</option>
-                {(staffList || []).map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.user?.name}</option>
-                ))}
-              </select>
-            </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-theme-muted-light">Assign Staff (Optional)</label>
+                <select 
+                  className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary"
+                  value={staffId}
+                  onChange={e => setStaffId(e.target.value)}
+                >
+                  <option value="">-- Unassigned --</option>
+                  {(staffList?.data?.data ? staffList.data.data : staffList?.data ? staffList.data : Array.isArray(staffList) ? staffList : [])
+                    .filter((s: any) => s.status === 'Active')
+                    .map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.user?.name} - {s.role}</option>
+                  ))}
+                </select>
+              </div>
 
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-theme-muted-light">Priority</label>

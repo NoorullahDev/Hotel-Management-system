@@ -90,6 +90,9 @@ function LoginContent() {
       // Store tokens
       localStorage.setItem('accessToken', data.accessToken);
       localStorage.setItem('refreshToken', data.refreshToken);
+      if (data.user) {
+        localStorage.setItem('hms_user', JSON.stringify(data.user));
+      }
 
       if (rememberMe) {
         localStorage.setItem('rememberedUsername', trimmedUsername);
@@ -97,8 +100,8 @@ function LoginContent() {
         localStorage.removeItem('rememberedUsername');
       }
 
-      // Redirect to dashboard
-      router.push('/dashboard');
+      // Redirect to dashboard (hard reload to ensure authenticated socket connection)
+      window.location.href = '/dashboard';
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);

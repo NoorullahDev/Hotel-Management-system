@@ -6,6 +6,7 @@ interface Props {
   settings: any;
   onSettingsChange: (category: string, key: string, value: any) => void;
   onSave: (category: string) => Promise<void>;
+  setHasUnsavedChanges?: (val: boolean) => void;
 }
 
 const TIMEZONES = [
@@ -14,7 +15,7 @@ const TIMEZONES = [
   'Asia/Dhaka', 'Asia/Singapore', 'Australia/Sydney'
 ];
 
-export default function HotelSettingsTab({ settings, onSettingsChange, onSave }: Props) {
+export default function HotelSettingsTab({ settings, onSettingsChange, onSave, setHasUnsavedChanges }: Props) {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -25,6 +26,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
     await onSave('hotel');
     setSaving(false);
     setSuccess(true);
+    setHasUnsavedChanges?.(false);
     setTimeout(() => setSuccess(false), 3000);
   };
 
@@ -60,7 +62,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
             <input
               type="time"
               value={get('checkInTime', '14:00')}
-              onChange={e => onSettingsChange('hotel', 'checkInTime', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'checkInTime', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
             />
           </div>
@@ -69,7 +71,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
             <input
               type="time"
               value={get('checkOutTime', '12:00')}
-              onChange={e => onSettingsChange('hotel', 'checkOutTime', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'checkOutTime', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
             />
           </div>
@@ -96,7 +98,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
               min="1"
               max="200"
               value={get('floors', '')}
-              onChange={e => onSettingsChange('hotel', 'floors', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'floors', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
               placeholder="e.g. 5"
             />
@@ -109,7 +111,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
               min="1"
               max="9999"
               value={get('rooms', '')}
-              onChange={e => onSettingsChange('hotel', 'rooms', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'rooms', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
               placeholder="e.g. 24"
             />
@@ -135,7 +137,7 @@ export default function HotelSettingsTab({ settings, onSettingsChange, onSave }:
             <label className="block text-sm font-medium text-theme-muted mb-1.5">Time Zone</label>
             <select
               value={get('timeZone', 'Asia/Karachi')}
-              onChange={e => onSettingsChange('hotel', 'timeZone', e.target.value)}
+              onChange={e => { onSettingsChange('hotel', 'timeZone', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors appearance-none"
             >
               {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}

@@ -5,6 +5,22 @@ import { getPublicSettingsData } from '../utils/settings';
 
 export const createBookingService = async (bookingData: any) => {
   const newBooking = await prisma.$transaction(async (tx) => {
+    // 1. Fetch room to check MAINTENANCE
+    const roomInfo = await tx.room.findUnique({
+      where: { id: bookingData.roomId }
+    });
+
+    if (roomInfo?.status === 'MAINTENANCE') {
+      throw new Error(`Room ${bookingData.roomId} is currently in maintenance and cannot be booked.`);
+    }
+
+    // 2. Write to room early to acquire write lock, preventing concurrent overlap race conditions
+    await tx.room.update({
+      where: { id: bookingData.roomId },
+      data: { status: 'RESERVED' }
+    });
+
+    // 3. Check for overlapping bookings
     const overlap = await tx.booking.findFirst({
       where: {
         roomId: bookingData.roomId,
@@ -25,11 +41,6 @@ export const createBookingService = async (bookingData: any) => {
         guest: true,
         room: { include: { roomType: true } }
       }
-    });
-
-    await tx.room.update({
-      where: { id: bookingData.roomId },
-      data: { status: 'RESERVED' }
     });
 
     return booking;

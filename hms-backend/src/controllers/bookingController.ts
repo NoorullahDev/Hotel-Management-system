@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler';
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../prisma';
 import { createBookingService, checkInBookingService } from '../services/booking.service';
 import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
@@ -128,7 +129,7 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
   });
 
 
-export const createBooking = asyncHandler(async (req: Request, res: Response) => {
+export const createBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { guest, bookingType, arrivalTime, additionalGuests, roomId, checkIn, checkOut, guestCount, subtotal, tax, total, paymentMethod } = req.body;
     
     const checkInDate = new Date(checkIn);
@@ -212,6 +213,15 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
       }
     });
 
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'CREATE_BOOKING',
+        module: 'Booking',
+        details: `Created booking ${newBooking.id} for guest ${dbGuest.name}`,
+      }
+    });
+
     res.status(201).json(newBooking);
   });
 
@@ -237,7 +247,7 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
     res.json(booking);
   });
 
-export const updateBooking = asyncHandler(async (req: Request, res: Response) => {
+export const updateBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const { status, guestCount, checkIn, checkOut, roomId, arrivalTime } = req.body;
 
@@ -249,33 +259,78 @@ export const updateBooking = asyncHandler(async (req: Request, res: Response) =>
     if (roomId) dataToUpdate.roomId = roomId;
     if (arrivalTime) dataToUpdate.arrivalTime = new Date(arrivalTime);
 
-    const booking = await prisma.booking.update({
+    const updatedBooking = await prisma.booking.update({
       where: { id },
       data: dataToUpdate
     });
 
-    res.json(booking);
-  });
-
-export const cancelBooking = asyncHandler(async (req: Request, res: Response) => {
-    const id = req.params.id as string;
-    const booking = await prisma.booking.update({
-      where: { id },
-      data: { status: 'CANCELLED' }
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'UPDATE_BOOKING',
+        module: 'Booking',
+        details: `Updated booking ${id}`,
+      }
     });
-    res.json(booking);
+
+    res.json(updatedBooking);
   });
 
-export const deleteBooking = asyncHandler(async (req: Request, res: Response) => {
+export const cancelBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = req.params.id as string;
+
+    const booking = await prisma.booking.findUnique({ where: { id } });
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        where: { id },
+        data: { status: 'CANCELLED' }
+      });
+
+      const room = await tx.room.findUnique({ where: { id: booking.roomId } });
+      if (room?.status === 'RESERVED') {
+        await tx.room.update({
+          where: { id: booking.roomId },
+          data: { status: 'AVAILABLE' }
+        });
+      }
+
+      return updated;
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'CANCEL_BOOKING',
+        module: 'Booking',
+        details: `Cancelled booking ${id}`,
+      }
+    });
+
+    res.json(updatedBooking);
+  });
+
+export const deleteBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     // The schema defines onDelete: Cascade on Payment, Invoice (→InvoiceItem),
     // FoodOrder (→OrderItem), and Feedback relations, so a single delete
     // removes all child records atomically via the DB engine.
     const booking = await prisma.booking.delete({ where: { id } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.userId,
+        action: 'DELETE_BOOKING',
+        module: 'Booking',
+        details: `Deleted booking ${id}`,
+      }
+    });
+
     res.json(booking);
   });
 
-export const checkInBooking = asyncHandler(async (req: Request, res: Response) => {
+export const checkInBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const booking = await prisma.booking.findUnique({ where: { id } });
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
@@ -343,7 +398,7 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
 
   });
 
-export const checkoutBooking = asyncHandler(async (req: Request, res: Response) => {
+export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const { discount } = req.body;
     

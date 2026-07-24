@@ -10,20 +10,23 @@ import {
   getFolio,
   checkoutBooking
 } from '../controllers/bookingController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
 router.use(authenticateJWT);
 
-router.get('/', getBookings);
-router.post('/', createBooking);
-router.get('/:id', getBookingById);
-router.patch('/:id', updateBooking);
-router.post('/:id/cancel', requireRole(['Admin', 'Manager']), cancelBooking);
-router.delete('/:id', requireRole(['Admin', 'Manager']), deleteBooking);
-router.post('/:id/checkin', checkInBooking);
-router.get('/:id/folio', getFolio);
-router.post('/:id/checkout', checkoutBooking);
+const canViewBookings = requirePermission('view_bookings');
+const canManageBookings = requirePermission('manage_bookings');
+
+router.get('/', canViewBookings, getBookings);
+router.post('/', canManageBookings, createBooking);
+router.get('/:id', canViewBookings, getBookingById);
+router.patch('/:id', canManageBookings, updateBooking);
+router.post('/:id/cancel', canManageBookings, cancelBooking);
+router.delete('/:id', canManageBookings, deleteBooking);
+router.post('/:id/checkin', canManageBookings, checkInBooking);
+router.get('/:id/folio', canViewBookings, getFolio);
+router.post('/:id/checkout', canManageBookings, checkoutBooking);
 
 export default router;

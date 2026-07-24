@@ -20,6 +20,14 @@ const fetchRoomTypes = async () => {
   }
 };
 
+const fetchUser = async () => {
+  try {
+    return await api.get<any>('/api/auth/me');
+  } catch {
+    return null;
+  }
+};
+
 const fetchSettings = async () => {
   try {
     return await api.get<any>('/api/settings');
@@ -52,6 +60,11 @@ export default function RoomsFilterBar({ filters, setFilters, onAddRoom }: Props
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: fetchSettings
+  });
+
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: fetchUser
   });
 
   const statuses = ['All Status', 'Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintenance'];
@@ -125,13 +138,15 @@ export default function RoomsFilterBar({ filters, setFilters, onAddRoom }: Props
 
       <div className="flex-1"></div>
 
-      <button 
-        onClick={onAddRoom}
-        className="flex items-center gap-2 px-5 py-2.5 bg-[#0066FF] hover:bg-primary text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-900/20 self-end active:scale-95"
-      >
-        <Plus size={18} />
-        Add Room
-      </button>
+      {(!user || user.role === 'Admin' || (user.permissions && user.permissions.includes('manage_rooms'))) && (
+        <button 
+          onClick={onAddRoom}
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-900/20 self-end active:scale-95"
+        >
+          <Plus size={18} />
+          Add Room
+        </button>
+      )}
     </div>
   );
 }

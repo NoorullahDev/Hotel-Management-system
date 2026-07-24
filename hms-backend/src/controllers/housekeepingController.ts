@@ -3,6 +3,10 @@ import { Request, Response } from 'express';
 import prisma from '../prisma';
 import { emitToHotel } from '../socket';
 import { notifyRoles } from '../services/notificationService';
+import bcrypt from 'bcrypt';
+import { PrismaClient } from '@prisma/client';
+
+type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
 export const getTasks = asyncHandler(async (req: Request, res: Response) => {
     const { status, assignedStaffId } = req.query;
@@ -86,15 +90,25 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     // If marked completed, update room status to AVAILABLE if it was CLEANING
     if (status === 'COMPLETED' || status === 'INSPECTED') {
       if (task.roomId && task.room && task.room.status === 'CLEANING') {
-        const updatedRoom = await prisma.room.update({
-          where: { id: task.roomId },
-          data: { status: 'AVAILABLE' }
+        const pendingTasks = await prisma.housekeepingTask.findFirst({
+          where: { 
+            roomId: task.roomId, 
+            status: { notIn: ['COMPLETED', 'INSPECTED'] },
+            id: { not: task.id } // Exclude the task currently being completed
+          }
         });
-        
-        emitToHotel('main', 'room:status_changed', {
-          roomId: task.roomId,
-          newStatus: 'AVAILABLE'
-        });
+
+        if (!pendingTasks) {
+          const updatedRoom = await prisma.room.update({
+            where: { id: task.roomId },
+            data: { status: 'AVAILABLE' }
+          });
+          
+          emitToHotel('main', 'room:status_changed', {
+            roomId: task.roomId,
+            newStatus: 'AVAILABLE'
+          });
+        }
 
         await notifyRoles(
           ['Admin', 'Manager', 'Receptionist'],
@@ -114,3 +128,66 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
 
     res.json(task);
   });
+
+export const createHousekeepingStaff = asyncHandler(async (req: Request, res: Response) => {
+  const { name, email, phone, role, status } = req.body;
+
+  if (!name || !role || !status) {
+    return res.status(400).json({ message: 'Missing required fields' });
+  }
+
+  const finalEmail = email ? String(email).trim().toLowerCase() : undefined;
+  const finalUsername = finalEmail ? finalEmail.split('@')[0] : `hsk_${Date.now()}`;
+
+  if (finalEmail) {
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email: finalEmail }, { username: finalUsername }] }
+    });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+  }
+
+  let systemRole = await prisma.role.findUnique({ where: { name: 'Housekeeping' } });
+  if (!systemRole) systemRole = await prisma.role.findFirst();
+
+  if (!systemRole) {
+    return res.status(500).json({ message: 'System roles not configured properly' });
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash('Password123!', salt);
+
+  const newStaff = await prisma.$transaction(async (tx: TxClient) => {
+    const count = await tx.staff.count();
+    const employeeId = `EMP-${1001 + count}`;
+
+    const user = await tx.user.create({
+      data: {
+        username: finalUsername,
+        email: finalEmail || `${finalUsername}@grandparkhotel.com`,
+        name: String(name),
+        phone: phone ? String(phone) : null,
+        passwordHash,
+        roleId: systemRole!.id,
+      }
+    });
+
+    const created = await tx.staff.create({
+      data: {
+        userId: user.id,
+        employeeId,
+        department: 'Housekeeping',
+        role: String(role),
+        shift: 'Morning (8AM - 4PM)',
+        attendance: 100,
+        status: String(status),
+        hireDate: new Date(),
+      }
+    });
+
+    return { user, staff: created };
+  });
+
+  res.status(201).json({ message: 'Housekeeping staff created successfully', id: newStaff.staff.id });
+});

@@ -39,22 +39,42 @@ const CATEGORIES = [
 ];
 
 function SettingsContent() {
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('account');
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && CATEGORIES.some(c => c.id === tab)) {
+    const userStr = localStorage.getItem('hms_user');
+    let role = '';
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        role = user.role;
+        setUserRole(role);
+      } catch (e) {}
+    }
+    
+    // Default active tab based on role if no tab in URL
+    const defaultTab = role === 'Admin' ? 'general' : 'account';
+    const tab = searchParams.get('tab') || defaultTab;
+    
+    const allowedCategories = CATEGORIES.filter(c => role === 'Admin' || ['account', 'security'].includes(c.id));
+    if (tab && allowedCategories.some(c => c.id === tab)) {
       setActiveTab(tab);
+    } else {
+      setActiveTab(defaultTab);
+    }
+
+    if (role === 'Admin' || role === 'Manager') {
+      fetchSettings();
+    } else {
+      setLoading(false);
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
 
   const fetchSettings = async () => {
     try {
@@ -92,15 +112,15 @@ function SettingsContent() {
   const renderActiveForm = () => {
     switch (activeTab) {
       case 'general':
-        return <GeneralSettingsTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} />;
+        return <GeneralSettingsTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'hotel':
-        return <HotelSettingsTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} />;
+        return <HotelSettingsTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'tax':
-        return <TaxTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} />;
+        return <TaxTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'currency':
-        return <CurrencyTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} />;
+        return <CurrencyTab settings={settings} onSettingsChange={handleSettingsChange} onSave={handleSaveCategory} setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'account':
-        return <AccountTab />;
+        return <AccountTab setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'users':
         return <UserManagementTab />;
       case 'roles':
@@ -108,7 +128,7 @@ function SettingsContent() {
       case 'permissions':
         return <PermissionsTab />;
       case 'security':
-        return <SecurityTab />;
+        return <SecurityTab setHasUnsavedChanges={setHasUnsavedChanges} />;
       case 'backup':
         return <BackupRestoreTab />;
       case 'audit':
@@ -136,10 +156,18 @@ function SettingsContent() {
           <p className="text-xs text-theme-muted mt-1">Manage system configurations</p>
         </div>
         <div className="p-2 space-y-1">
-          {CATEGORIES.map(category => (
+          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security'].includes(c.id)).map(category => (
             <button
               key={category.id}
-              onClick={() => {
+              onClick={(e) => {
+                if (activeTab === category.id) return;
+                if (hasUnsavedChanges) {
+                  if (!window.confirm('You have unsaved changes. Are you sure you want to leave this tab? Your changes will be lost.')) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setHasUnsavedChanges(false);
+                }
                 setActiveTab(category.id);
                 router.push(`/settings?tab=${category.id}`);
               }}
@@ -173,10 +201,18 @@ function SettingsContent() {
 
         {/* Mobile Tabs */}
         <div className="md:hidden flex overflow-x-auto whitespace-nowrap scrollbar-hide border-b border-theme-border bg-theme-secondary/50">
-          {CATEGORIES.map(category => (
+          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security'].includes(c.id)).map(category => (
             <button
               key={category.id}
-              onClick={() => {
+              onClick={(e) => {
+                if (activeTab === category.id) return;
+                if (hasUnsavedChanges) {
+                  if (!window.confirm('You have unsaved changes. Are you sure you want to leave this tab? Your changes will be lost.')) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setHasUnsavedChanges(false);
+                }
                 setActiveTab(category.id);
                 router.push(`/settings?tab=${category.id}`);
               }}

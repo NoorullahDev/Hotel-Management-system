@@ -66,6 +66,14 @@ export default function StaffPage() {
     enabled: !!userRole
   });
 
+  const { data: roles = [] } = useQuery({
+    queryKey: ['rolesList'],
+    queryFn: async () => {
+      return api.get<any>('/api/roles');
+    },
+    enabled: !!userRole
+  });
+
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -561,7 +569,10 @@ export default function StaffPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-medium text-theme-muted-light">Role / Job Title *</label>
-                  <input type="text" placeholder="e.g. Head Chef" className="bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-theme-text outline-none focus:border-primary" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} required />
+                  <select className="bg-theme-main border border-theme-border rounded-xl px-4 py-2.5 text-theme-text outline-none focus:border-primary" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} required>
+                    <option value="" disabled>Select Role</option>
+                    {roles.map((r: any) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

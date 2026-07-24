@@ -1,29 +1,26 @@
 import express from 'express';
 import { getOrders, createOrder, updateOrderStatus, getMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, getCategories, createCategory, deleteCategory, verifyGuest } from '../controllers/restaurantController';
-import { authenticateJWT, requireRole } from '../middleware/authMiddleware';
+import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// All restaurant routes require authentication
 router.use(authenticateJWT);
 
-// Orders — accessible to Admin, Manager, Receptionist
-router.get('/orders', getOrders);
-router.post('/orders', createOrder);
-router.patch('/orders/:id/status', updateOrderStatus);
+const canManageRestaurant = requirePermission('manage_restaurant');
 
-// Guest verification
-router.post('/verify-guest', verifyGuest);
+router.get('/orders', canManageRestaurant, getOrders);
+router.post('/orders', canManageRestaurant, createOrder);
+router.patch('/orders/:id/status', canManageRestaurant, updateOrderStatus);
 
-// Categories — read for all authenticated, write for Admin/Manager
-router.get('/categories', getCategories);
-router.post('/categories', requireRole(['Admin', 'Manager']), createCategory);
-router.delete('/categories/:id', requireRole(['Admin', 'Manager']), deleteCategory);
+router.post('/verify-guest', canManageRestaurant, verifyGuest);
 
-// Menu — read for all authenticated, write for Admin/Manager
-router.get('/menu', getMenuItems);
-router.post('/menu', requireRole(['Admin', 'Manager']), createMenuItem);
-router.put('/menu/:id', requireRole(['Admin', 'Manager']), updateMenuItem);
-router.delete('/menu/:id', requireRole(['Admin', 'Manager']), deleteMenuItem);
+router.get('/categories', canManageRestaurant, getCategories);
+router.post('/categories', canManageRestaurant, createCategory);
+router.delete('/categories/:id', canManageRestaurant, deleteCategory);
+
+router.get('/menu', canManageRestaurant, getMenuItems);
+router.post('/menu', canManageRestaurant, createMenuItem);
+router.put('/menu/:id', canManageRestaurant, updateMenuItem);
+router.delete('/menu/:id', canManageRestaurant, deleteMenuItem);
 
 export default router;

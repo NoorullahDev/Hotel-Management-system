@@ -2,6 +2,15 @@ import prisma from '../prisma';
 import { emitToHotel } from '../socket';
 
 export const updateRoomStatus = async (id: string, status: any) => {
+  if (status === 'AVAILABLE') {
+    const pendingTask = await prisma.housekeepingTask.findFirst({
+      where: { roomId: id, status: { notIn: ['COMPLETED', 'INSPECTED'] } }
+    });
+    if (pendingTask) {
+      throw new Error('Cannot mark room as AVAILABLE while there are pending housekeeping tasks');
+    }
+  }
+
   const updatedRoom = await prisma.room.update({
     where: { id },
     data: { status },

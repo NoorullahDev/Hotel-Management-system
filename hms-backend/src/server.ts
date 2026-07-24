@@ -60,12 +60,23 @@ app.use('/api/roles', roleRoutes);
 
 // Serve frontend static files
 const frontendPath = path.join(__dirname, '../../hms-frontend/out');
-app.use(express.static(frontendPath));
+app.use(express.static(frontendPath, { extensions: ['html'] }));
 
-// For SPA routing, fallback to index.html for non-API routes
+// For SPA routing, fallback to correct HTML files for non-API routes
 app.use((req, res, next) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api')) {
-    res.sendFile(path.join(frontendPath, 'index.html'));
+  if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api')) {
+    if (req.path === '/' || req.path === '') {
+      return res.sendFile(path.join(frontendPath, 'login.html'));
+    }
+    // If a specific route like /dashboard is requested and express.static didn't find it,
+    // it usually means the HTML file exists as <route>.html
+    const htmlFile = req.path === '/' ? 'login.html' : `${req.path.replace(/^\//, '')}.html`;
+    res.sendFile(path.join(frontendPath, htmlFile), (err) => {
+      if (err) {
+        // Fallback to 404 if file doesn't exist
+        res.status(404).sendFile(path.join(frontendPath, '404.html'));
+      }
+    });
   } else {
     next();
   }

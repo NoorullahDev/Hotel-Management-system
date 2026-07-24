@@ -20,10 +20,22 @@ export default function AuditLogsTab() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [moduleFilter, setModuleFilter] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [userIdFilter, setUserIdFilter] = useState('');
   
+  const [users, setUsers] = useState<{id: string, name: string}[]>([]);
+
   useEffect(() => {
     fetchLogs();
-  }, [page, moduleFilter]);
+  }, [page, moduleFilter, actionFilter, dateFrom, dateTo, userIdFilter]);
+
+  useEffect(() => {
+    api.get<any>('/api/staff').then(res => {
+      setUsers(res.map((s: any) => ({ id: s.userId, name: s.name })));
+    }).catch(console.error);
+  }, []);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -33,6 +45,10 @@ export default function AuditLogsTab() {
         limit: '20'
       });
       if (moduleFilter) params.set('module', moduleFilter);
+      if (actionFilter) params.set('action', actionFilter);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (userIdFilter) params.set('userId', userIdFilter);
       
       const data = await api.get<any>(`/api/audit-logs?${params}`);
       setLogs(data.data);
@@ -55,13 +71,51 @@ export default function AuditLogsTab() {
           <p className="text-sm text-theme-muted">Track all significant system events and user actions</p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+            className="px-3 py-2 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:border-primary"
+            title="Start Date"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setPage(1); }}
+            className="px-3 py-2 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:border-primary"
+            title="End Date"
+          />
+
+          <div className="relative">
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" />
+            <select
+              value={actionFilter}
+              onChange={e => { setActionFilter(e.target.value); setPage(1); }}
+              className="pl-9 pr-8 py-2 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:border-primary appearance-none"
+            >
+              <option value="">All Actions</option>
+              <option value="LOGIN">Login</option>
+              <option value="CREATE_BOOKING">Create Booking</option>
+              <option value="UPDATE_BOOKING">Update Booking</option>
+              <option value="CANCEL_BOOKING">Cancel Booking</option>
+              <option value="CHECK_IN_BOOKING">Check In</option>
+              <option value="CHECK_OUT_BOOKING">Check Out</option>
+              <option value="CREATE_ROOM">Create Room</option>
+              <option value="UPDATE_ROOM">Update Room</option>
+              <option value="DELETE_ROOM">Delete Room</option>
+              <option value="CREATE_STAFF">Create Staff</option>
+              <option value="UPDATE_STAFF">Update Staff</option>
+              <option value="DELETE_STAFF">Delete Staff</option>
+            </select>
+          </div>
+
           <div className="relative">
             <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" />
             <select
               value={moduleFilter}
               onChange={e => { setModuleFilter(e.target.value); setPage(1); }}
-              className="pl-9 pr-8 py-2.5 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary appearance-none"
+              className="pl-9 pr-8 py-2 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:border-primary appearance-none"
             >
               <option value="">All Modules</option>
               <option value="Auth">Auth</option>
@@ -69,6 +123,21 @@ export default function AuditLogsTab() {
               <option value="Settings">Settings</option>
               <option value="Restaurant">Restaurant</option>
               <option value="Room Management">Room Management</option>
+              <option value="Staff">Staff</option>
+            </select>
+          </div>
+
+          <div className="relative">
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" />
+            <select
+              value={userIdFilter}
+              onChange={e => { setUserIdFilter(e.target.value); setPage(1); }}
+              className="pl-9 pr-8 py-2 bg-theme-main border border-theme-border rounded-xl text-theme-text text-sm focus:outline-none focus:border-primary appearance-none max-w-[200px]"
+            >
+              <option value="">All Users</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
             </select>
           </div>
         </div>

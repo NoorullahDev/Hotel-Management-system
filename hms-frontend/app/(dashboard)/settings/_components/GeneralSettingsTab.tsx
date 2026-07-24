@@ -8,9 +8,10 @@ interface Props {
   settings: any;
   onSettingsChange: (category: string, key: string, value: any) => void;
   onSave: (category: string) => Promise<void>;
+  setHasUnsavedChanges?: (val: boolean) => void;
 }
 
-export default function GeneralSettingsTab({ settings, onSettingsChange, onSave }: Props) {
+export default function GeneralSettingsTab({ settings, onSettingsChange, onSave, setHasUnsavedChanges }: Props) {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -31,23 +32,49 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
       const uploadData = await api.post<any>('/api/upload', formData);
       if (uploadData.imageUrl) {
         onSettingsChange('general', key, uploadData.imageUrl);
+        setHasUnsavedChanges?.(true);
       } else {
         alert('Image upload failed. Please try again.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload error', err);
-      alert('Error uploading image.');
+      alert(err.message || 'Error uploading image.');
     } finally {
       setUploading(null);
     }
   };
 
   const handleSave = async () => {
+    const hotelName = get('hotelName');
+    const loginHeadingMain = get('loginHeadingMain', 'Smart Hotel Management Simplified.');
+
+    if (!hotelName || !hotelName.trim()) {
+      alert('Hotel Name is required.');
+      return;
+    }
+
+    if (!loginHeadingMain || !loginHeadingMain.trim()) {
+      alert('Main Heading for Login Page is required.');
+      return;
+    }
+
+    const email = get('email');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
     setSaving(true);
-    await onSave('general');
-    setSaving(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    try {
+      await onSave('general');
+      setSuccess(true);
+      setHasUnsavedChanges?.(false);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      alert('Failed to save changes.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resolveUrl = (path: string) => {
@@ -168,7 +195,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <input
               type="text"
               value={get('loginHeadingMain', 'Smart Hotel Management Simplified.')}
-              onChange={e => onSettingsChange('general', 'loginHeadingMain', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'loginHeadingMain', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
               placeholder="e.g. Smart Hotel Management Simplified."
             />
@@ -178,7 +205,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <label className="block text-sm font-medium text-theme-muted mb-1.5">Subheading Description</label>
             <textarea
               value={get('loginSubheading', 'Manage bookings, guests, staff, and operations seamlessly with our all-in-one hotel management solution.')}
-              onChange={e => onSettingsChange('general', 'loginSubheading', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'loginSubheading', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary h-20 resize-none transition-colors"
               placeholder="Enter a brief description..."
             />
@@ -195,7 +222,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <input
               type="text"
               value={get('hotelName')}
-              onChange={e => onSettingsChange('general', 'hotelName', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'hotelName', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
               placeholder="Grand Park Hotel"
             />
@@ -207,7 +234,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <input
               type="email"
               value={get('email')}
-              onChange={e => onSettingsChange('general', 'email', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'email', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
               placeholder="info@hotel.com"
             />
@@ -217,7 +244,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <label className="block text-sm font-medium text-theme-muted mb-1.5">Hotel Address</label>
             <textarea
               value={get('hotelAddress')}
-              onChange={e => onSettingsChange('general', 'hotelAddress', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'hotelAddress', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary h-20 resize-none transition-colors"
               placeholder="123 Hotel Avenue, New York, NY 10001"
             />
@@ -228,7 +255,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave 
             <input
               type="text"
               value={get('contactNumber')}
-              onChange={e => onSettingsChange('general', 'contactNumber', e.target.value)}
+              onChange={e => { onSettingsChange('general', 'contactNumber', e.target.value); setHasUnsavedChanges?.(true); }}
               className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary transition-colors"
               placeholder="+92 300 1234567"
             />

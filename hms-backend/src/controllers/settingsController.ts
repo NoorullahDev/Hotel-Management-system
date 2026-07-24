@@ -163,7 +163,10 @@ export const changePassword = asyncHandler(async (req: AuthRequest, res: Respons
     if (!isValid) return res.status(400).json({ message: 'Incorrect current password' });
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await prisma.user.update({ 
+      where: { id: userId }, 
+      data: { passwordHash, mustChangePassword: false } 
+    });
 
     await prisma.auditLog.create({
       data: {

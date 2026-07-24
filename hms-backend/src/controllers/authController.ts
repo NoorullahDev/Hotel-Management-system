@@ -12,7 +12,7 @@ if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
 }
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { username, password } = req.body;
+  const { username, password, newPassword } = req.body;
   const normalizedUsername = (username || '').trim().toLowerCase();
 
     let user = await prisma.user.findFirst({
@@ -66,14 +66,37 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       return res.status(newAttempts >= 5 ? 403 : 401).json({ message });
     }
 
-    // Success: Reset failed attempts and lock
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      },
-    });
+    // Handle password change enforcement
+    if (user.mustChangePassword) {
+      if (!newPassword) {
+        return res.status(403).json({ 
+          message: 'You must set a new password before continuing.',
+          requirePasswordChange: true 
+        });
+      }
+      
+      const salt = await bcrypt.genSalt(10);
+      const newPasswordHash = await bcrypt.hash(newPassword, salt);
+      
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          passwordHash: newPasswordHash,
+          mustChangePassword: false,
+          failedLoginAttempts: 0,
+          lockedUntil: null
+        }
+      });
+    } else {
+      // Success: Reset failed attempts and lock
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+        },
+      });
+    }
 
     // Generate tokens
     const payload = { userId: user.id, role: user.role.name };

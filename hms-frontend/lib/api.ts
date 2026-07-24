@@ -1,7 +1,7 @@
 import { API_BASE } from './config';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public data?: any) {
     super(message);
     this.name = 'ApiError';
   }
@@ -35,7 +35,7 @@ export async function apiFetch<T>(
   if (res.status === 401) {
     if (path.includes('/api/auth/login') || path.includes('/api/auth/refresh')) {
       const body = await res.json().catch(() => ({}));
-      throw new ApiError(res.status, body.message || 'Invalid credentials');
+      throw new ApiError(res.status, body.message || 'Invalid credentials', body);
     }
 
     if (typeof window !== 'undefined') {
@@ -78,7 +78,7 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.message || `HTTP ${res.status}`);
+    throw new ApiError(res.status, body.message || `HTTP ${res.status}`, body);
   }
 
   return res.json() as Promise<T>;

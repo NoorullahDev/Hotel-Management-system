@@ -4,6 +4,7 @@ import prisma from '../prisma';
 import { emitToHotel } from '../socket';
 import { notifyRoles } from '../services/notificationService';
 import { getPagination, buildMeta } from '../utils/pagination';
+import { Prisma } from '@prisma/client';
 
 export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     const { limit, page, search, status, startDate, endDate } = req.query as any;
@@ -74,16 +75,16 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     }
 
     let hasInvalidQuantity = false;
-    let totalAmount = 0;
+    let totalAmount = new Prisma.Decimal(0);
     const orderItemsData = items.map((item: any) => {
-      const price = parseFloat(item.price);
+      const price = new Prisma.Decimal(item.price);
       const quantity = parseInt(item.quantity, 10);
       
       if (isNaN(quantity) || quantity <= 0) {
         hasInvalidQuantity = true;
       }
       
-      totalAmount += price * quantity;
+      totalAmount = totalAmount.plus(price.mul(quantity));
       return {
         itemName: item.name,
         quantity,
@@ -201,17 +202,37 @@ export const verifyGuest = asyncHandler(async (req: Request, res: Response) => {
 
 export const createMenuItem = asyncHandler(async (req: Request, res: Response) => {
     const { name, category, price, imageUrl } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return res.status(400).json({ message: 'Name must be a non-empty string' });
+    }
+
+    const numPrice = Number(price);
+    if (isNaN(numPrice) || numPrice < 0) {
+      return res.status(400).json({ message: 'Price must be a valid positive number' });
+    }
+
     const item = await prisma.menuItem.create({
-      data: { name, category, price: Number(price), imageUrl }
+      data: { name: name.trim(), category, price: numPrice, imageUrl }
     });
     res.status(201).json(item);
   });
 
 export const updateMenuItem = asyncHandler(async (req: Request, res: Response) => {
     const { name, category, price, imageUrl } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return res.status(400).json({ message: 'Name must be a non-empty string' });
+    }
+
+    const numPrice = Number(price);
+    if (isNaN(numPrice) || numPrice < 0) {
+      return res.status(400).json({ message: 'Price must be a valid positive number' });
+    }
+
     const item = await prisma.menuItem.update({
       where: { id: String(req.params.id) },
-      data: { name, category, price: Number(price), imageUrl }
+      data: { name: name.trim(), category, price: numPrice, imageUrl }
     });
     res.json(item);
   });
@@ -230,8 +251,13 @@ export const getCategories = asyncHandler(async (req: Request, res: Response) =>
 
 export const createCategory = asyncHandler(async (req: Request, res: Response) => {
     const { name } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return res.status(400).json({ message: 'Name must be a non-empty string' });
+    }
+
     const category = await prisma.menuCategory.create({
-      data: { name }
+      data: { name: name.trim() }
     });
     res.status(201).json(category);
   });

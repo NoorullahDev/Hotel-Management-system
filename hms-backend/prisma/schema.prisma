@@ -28,6 +28,7 @@ model User {
   auditLogs              AuditLog[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
+  mustChangePassword     Boolean                 @default(true)
   staff                  Staff?
   role                   Role                    @relation(fields: [roleId], references: [id])
 }
@@ -79,7 +80,7 @@ model Room {
   floor             Int
   roomTypeId        String
   price             Decimal
-  status            RoomStatus         @default("AVAILABLE")
+  status            RoomStatus         @default(AVAILABLE)
   amenities         String             @default("[]")
   imageUrl          String?
   bookings          Booking[]
@@ -98,7 +99,7 @@ model Booking {
   arrivalTime      DateTime?
   guestCount       Int
   additionalGuests Json?
-  status           BookingStatus @default("CONFIRMED")
+  status           BookingStatus @default(CONFIRMED)
   subtotal         Decimal
   tax              Decimal
   total            Decimal

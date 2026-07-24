@@ -4,6 +4,8 @@ import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../prisma';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import { createStaffAccount } from '../services/staff.service';
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -80,62 +82,27 @@ export const createStaff = asyncHandler(async (req: AuthRequest, res: Response) 
     return res.status(400).json({ message: 'Missing required fields' });
   }
 
-    const finalUsername = (username ? String(username) : String(email).split('@')[0]).trim().toLowerCase();
-    const finalEmail = String(email).trim().toLowerCase();
-
-    const existingUser = await prisma.user.findFirst({
-      where: { OR: [{ email: finalEmail }, { username: finalUsername }] }
-    });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email or username already exists' });
-    }
-
-    let systemRoleName = 'Receptionist';
-    const dept = String(department).toLowerCase();
-    if (dept === 'housekeeping') systemRoleName = 'Housekeeping';
-    else if (dept === 'restaurant') systemRoleName = 'Restaurant';
-    else if (dept === 'management') systemRoleName = 'Manager';
-
-    let systemRole = await prisma.role.findUnique({ where: { name: systemRoleName } });
-    if (!systemRole) systemRole = await prisma.role.findFirst();
-
-    if (!systemRole) {
-      return res.status(500).json({ message: 'System roles not configured properly' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash('Password123!', salt);
-
-    const newStaff = await prisma.$transaction(async (tx: TxClient) => {
-      const count = await tx.staff.count();
-      const employeeId = `EMP-${1001 + count}`;
-
-      const user = await tx.user.create({
-        data: {
-          username: finalUsername,
-          email: finalEmail,
+    let newStaff: any;
+    try {
+      newStaff = await prisma.$transaction(async (tx) => {
+        return await createStaffAccount(tx, {
           name: String(name),
-          phone: phone ? String(phone) : null,
-          passwordHash,
-          roleId: systemRole!.id,
-        }
-      });
-
-      const created = await tx.staff.create({
-        data: {
-          userId: user.id,
-          employeeId,
+          username: username ? String(username) : undefined,
+          email: String(email),
+          phone: phone ? String(phone) : undefined,
           department: String(department),
           role: String(role),
-          shift: shift ? String(shift) : 'Morning (8AM - 4PM)',
-          attendance: 100,
+          shift: shift ? String(shift) : undefined,
           status: String(status),
-          hireDate: hireDate ? new Date(String(hireDate)) : new Date(),
-        }
+          hireDate: hireDate ? new Date(String(hireDate)) : undefined,
+        });
       });
-
-      return { user, staff: created };
-    });
+    } catch (error: any) {
+      if (error.message.includes('already exists') || error.message.includes('not configured')) {
+        return res.status(error.message.includes('already exists') ? 400 : 500).json({ message: error.message });
+      }
+      throw error;
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -146,7 +113,7 @@ export const createStaff = asyncHandler(async (req: AuthRequest, res: Response) 
       }
     });
 
-    res.status(201).json({ message: 'Staff created successfully', id: newStaff.staff.id });
+    res.status(201).json({ message: 'Staff created successfully', id: newStaff.staff.id, temporaryPassword: newStaff.temporaryPassword });
   });
 
 // Update staff

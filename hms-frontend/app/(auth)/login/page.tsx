@@ -78,6 +78,9 @@ function LoginContent() {
     };
   }, []);
 
+  const [requirePasswordChange, setRequirePasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -85,7 +88,11 @@ function LoginContent() {
 
     try {
       const trimmedUsername = username.trim();
-      const data = await api.post<any>('/api/auth/login', { username: trimmedUsername, password });
+      const payload = requirePasswordChange 
+        ? { username: trimmedUsername, password, newPassword } 
+        : { username: trimmedUsername, password };
+        
+      const data = await api.post<any>('/api/auth/login', payload);
 
       // Store tokens
       localStorage.setItem('accessToken', data.accessToken);
@@ -102,11 +109,16 @@ function LoginContent() {
 
       // Redirect to dashboard (hard reload to ensure authenticated socket connection)
       window.location.href = '/dashboard';
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
+    } catch (err: any) {
+      if (err.data?.requirePasswordChange) {
+        setRequirePasswordChange(true);
+        setError('You must set a new password before continuing.');
       } else {
-        setError('An unknown error occurred');
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred');
+        }
       }
     } finally {
       setLoading(false);
@@ -196,8 +208,8 @@ function LoginContent() {
 
         <div className="w-full max-w-md mx-auto relative z-10 bg-theme-card/50 backdrop-blur-xl p-8 sm:p-10 rounded-3xl shadow-soft border border-theme-border/50">
           <div className="mb-10 text-center">
-            <h2 className={`text-3xl font-bold mb-2 text-theme-text tracking-tight ${outfit.className}`}>Welcome Back</h2>
-            <p className="text-theme-muted">Sign in to continue to your account</p>
+            <h2 className={`text-3xl font-bold mb-2 text-theme-text tracking-tight ${outfit.className}`}>{requirePasswordChange ? 'Set New Password' : 'Welcome Back'}</h2>
+            <p className="text-theme-muted">{requirePasswordChange ? 'Please choose a new password for your account' : 'Sign in to continue to your account'}</p>
           </div>
 
           {error && (
@@ -207,70 +219,102 @@ function LoginContent() {
           )}
 
           <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-theme-muted-light">Username</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
-                  <Mail size={18} />
+            {!requirePasswordChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-theme-muted-light">Username</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
+                    <Mail size={18} />
+                  </div>
+                  <input 
+                    type="text" 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full pl-11 pr-4 py-3.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted-light focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                    placeholder="Username"
+                    required
+                  />
                 </div>
-                <input 
-                  type="text" 
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted-light focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
-                  placeholder="Username"
-                  required
-                />
               </div>
-            </div>
+            )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-theme-muted-light">Password</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
-                  <Lock size={18} />
+            {!requirePasswordChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-theme-muted-light">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
+                    <Lock size={18} />
+                  </div>
+                  <input 
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-11 pr-11 py-3.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted-light focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                    placeholder="••••••••••••"
+                    required
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted-light hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
-                <input 
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-11 py-3.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted-light focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
-                  placeholder="••••••••••••"
-                  required
-                />
+              </div>
+            )}
+
+            {requirePasswordChange && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-theme-muted-light">New Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
+                    <Lock size={18} />
+                  </div>
+                  <input 
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full pl-11 pr-11 py-3.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted-light focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                    placeholder="••••••••••••"
+                    required
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted-light hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!requirePasswordChange && (
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center justify-center w-4 h-4">
+                    <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="peer w-4 h-4 rounded border-theme-strong bg-theme-main text-primary focus:ring-primary/20 transition-all cursor-pointer appearance-none checked:bg-primary checked:border-primary" />
+                    <Check size={12} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
+                  </div>
+                  <span className="text-sm text-theme-muted group-hover:text-theme-text transition-colors">Remember me</span>
+                </label>
                 <button 
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-theme-muted-light hover:text-primary transition-colors"
+                  onClick={(e) => { e.preventDefault(); setError('Please contact your system administrator to reset your password.'); }}
+                  className="text-sm text-primary hover:text-blue-600 transition-colors font-medium"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  Forgot password?
                 </button>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative flex items-center justify-center w-4 h-4">
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="peer w-4 h-4 rounded border-theme-strong bg-theme-main text-primary focus:ring-primary/20 transition-all cursor-pointer appearance-none checked:bg-primary checked:border-primary" />
-                  <Check size={12} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
-                </div>
-                <span className="text-sm text-theme-muted group-hover:text-theme-text transition-colors">Remember me</span>
-              </label>
-              <button 
-                type="button"
-                onClick={(e) => { e.preventDefault(); setError('Please contact your system administrator to reset your password.'); }}
-                className="text-sm text-primary hover:text-blue-600 transition-colors font-medium"
-              >
-                Forgot password?
-              </button>
-            </div>
+            )}
 
             <button 
               type="submit"
               disabled={loading}
               className="w-full bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white font-medium py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group disabled:opacity-70 active:scale-95 shadow-lg shadow-primary/20"
             >
-              {loading ? 'Signing in...' : 'Login'}
+              {loading ? (requirePasswordChange ? 'Updating...' : 'Signing in...') : (requirePasswordChange ? 'Set New Password' : 'Login')}
               {!loading && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
             </button>
           </form>

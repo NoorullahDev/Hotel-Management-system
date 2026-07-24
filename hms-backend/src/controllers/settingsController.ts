@@ -400,76 +400,83 @@ export const restoreDatabase = asyncHandler(async (req: Request, res: Response) 
     }
 
     const zipPath = req.file.path;
-    const zip = new AdmZip(zipPath);
-    const zipEntries = zip.getEntries();
+    try {
+      const zip = new AdmZip(zipPath);
+      const zipEntries = zip.getEntries();
 
-    const dbEntry = zipEntries.find(entry => entry.entryName === 'database.sql');
-    if (!dbEntry) {
-      fs.unlinkSync(zipPath); // clean up
-      return res.status(400).json({ message: 'Invalid backup: missing database.sql' });
-    }
+      const dbEntry = zipEntries.find(entry => entry.entryName === 'database.sql');
+      if (!dbEntry) {
+        return res.status(400).json({ message: 'Invalid backup: missing database.sql' });
+      }
 
-    const sqlScript = dbEntry.getData().toString('utf8');
+      const sqlScript = dbEntry.getData().toString('utf8');
 
-    // Parse SQL statements properly — handle semicolons inside quoted strings
-    const statements: string[] = [];
-    let current = '';
-    let inString = false;
-    let stringChar = '';
-    
-    for (let i = 0; i < sqlScript.length; i++) {
-      const ch = sqlScript[i];
+      // Parse SQL statements properly — handle semicolons inside quoted strings
+      const statements: string[] = [];
+      let current = '';
+      let inString = false;
+      let stringChar = '';
       
-      if (inString) {
-        current += ch;
-        // Check for escaped quote (doubled quote like '')
-        if (ch === stringChar) {
-          if (i + 1 < sqlScript.length && sqlScript[i + 1] === stringChar) {
-            current += sqlScript[i + 1];
-            i++; // skip the escaped quote
-          } else {
-            inString = false;
-          }
-        }
-      } else {
-        if (ch === "'" || ch === '"') {
-          inString = true;
-          stringChar = ch;
+      for (let i = 0; i < sqlScript.length; i++) {
+        const ch = sqlScript[i];
+        
+        if (inString) {
           current += ch;
-        } else if (ch === ';') {
-          const trimmed = current.trim();
-          if (trimmed.length > 0 && !trimmed.startsWith('--')) {
-            statements.push(trimmed);
+          // Check for escaped quote (doubled quote like '')
+          if (ch === stringChar) {
+            if (i + 1 < sqlScript.length && sqlScript[i + 1] === stringChar) {
+              current += sqlScript[i + 1];
+              i++; // skip the escaped quote
+            } else {
+              inString = false;
+            }
           }
-          current = '';
-        } else if (ch === '-' && i + 1 < sqlScript.length && sqlScript[i + 1] === '-') {
-          // Skip comment line
-          const newlineIdx = sqlScript.indexOf('\n', i);
-          if (newlineIdx === -1) break;
-          i = newlineIdx;
         } else {
-          current += ch;
+          if (ch === "'" || ch === '"') {
+            inString = true;
+            stringChar = ch;
+            current += ch;
+          } else if (ch === ';') {
+            const trimmed = current.trim();
+            if (trimmed.length > 0 && !trimmed.startsWith('--')) {
+              statements.push(trimmed);
+            }
+            current = '';
+          } else if (ch === '-' && i + 1 < sqlScript.length && sqlScript[i + 1] === '-') {
+            // Skip comment line
+            const newlineIdx = sqlScript.indexOf('\n', i);
+            if (newlineIdx === -1) break;
+            i = newlineIdx;
+          } else {
+            current += ch;
+          }
         }
       }
-    }
-    // Don't forget the last statement if there's no trailing semicolon
-    const lastTrimmed = current.trim();
-    if (lastTrimmed.length > 0 && !lastTrimmed.startsWith('--')) {
-      statements.push(lastTrimmed);
-    }
+      // Don't forget the last statement if there's no trailing semicolon
+      const lastTrimmed = current.trim();
+      if (lastTrimmed.length > 0 && !lastTrimmed.startsWith('--')) {
+        statements.push(lastTrimmed);
+      }
 
-    // Execute all statements within a transaction to ensure atomicity
-    try {
-      await prisma.$transaction(async (tx) => {
-        // We do not need PRAGMA foreign_keys = OFF because tables are deleted/inserted in dependency order
-        for (const stmt of statements) {
-          await tx.$executeRawUnsafe(stmt);
-        }
-      });
-      res.json({ message: 'Database restored successfully' });
-    } catch (err: any) {
-      console.error('Restore failed:', err);
-      res.status(500).json({ message: `Restore failed: ${err.message}` });
+      // Execute all statements within a transaction to ensure atomicity
+      try {
+        await prisma.$transaction(async (tx) => {
+          // We do not need PRAGMA foreign_keys = OFF because tables are deleted/inserted in dependency order
+          for (const stmt of statements) {
+            await tx.$executeRawUnsafe(stmt);
+          }
+        });
+        res.json({ message: 'Database restored successfully' });
+      } catch (err: any) {
+        console.error('Restore failed:', err);
+        res.status(500).json({ message: `Restore failed: ${err.message}` });
+      }
+    } finally {
+      try {
+        fs.unlinkSync(zipPath);
+      } catch (cleanupErr) {
+        // Ignore errors if the file was already removed or inaccessible
+      }
     }
   });
 

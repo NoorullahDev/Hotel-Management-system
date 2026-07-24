@@ -458,6 +458,64 @@ export const restoreDatabase = asyncHandler(async (req: Request, res: Response) 
         statements.push(lastTrimmed);
       }
 
+      // --- PATCH FOR OLD BACKUPS MISSING USERNAME ---
+      function splitSqlValues(str: string): string[] {
+        let result: string[] = [];
+        let cur = '';
+        let insideStr = false;
+        for (let idx = 0; idx < str.length; idx++) {
+          const char = str[idx];
+          if (char === "'") {
+            if (insideStr && idx + 1 < str.length && str[idx + 1] === "'") {
+              cur += "''";
+              idx++;
+            } else {
+              insideStr = !insideStr;
+              cur += char;
+            }
+          } else if (char === ',' && !insideStr) {
+            result.push(cur.trim());
+            cur = '';
+          } else {
+            cur += char;
+          }
+        }
+        if (cur) result.push(cur.trim());
+        return result;
+      }
+
+      for (let j = 0; j < statements.length; j++) {
+        let stmt = statements[j];
+        if (stmt.startsWith('INSERT INTO "User"')) {
+          const match = stmt.match(/INSERT INTO "User" \((.*?)\) VALUES \((.*)\)$/is);
+          if (match) {
+            const cols = match[1].split(',').map(c => c.trim().replace(/"/g, ''));
+            const vals = splitSqlValues(match[2]);
+            
+            if (!cols.includes('username')) {
+              const emailIndex = cols.indexOf('email');
+              if (emailIndex !== -1) {
+                const emailVal = vals[emailIndex].replace(/^'|'$/g, '');
+                const username = emailVal.split('@')[0].toLowerCase();
+                
+                cols.push('username');
+                vals.push(`'${username}'`);
+              }
+            }
+
+            if (!cols.includes('mustChangePassword')) {
+              cols.push('mustChangePassword');
+              vals.push('0');
+            }
+            
+            const newColsStr = cols.map(c => `"${c}"`).join(', ');
+            const newValsStr = vals.join(', ');
+            statements[j] = `INSERT INTO "User" (${newColsStr}) VALUES (${newValsStr})`;
+          }
+        }
+      }
+      // ----------------------------------------------
+
       // Execute all statements within a transaction to ensure atomicity
       try {
         await prisma.$transaction(async (tx) => {

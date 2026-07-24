@@ -138,6 +138,8 @@ model Payment {
 model Invoice {
   id        String        @id @default(uuid())
   bookingId String        @unique
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
   booking   Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   items     InvoiceItem[]
 }

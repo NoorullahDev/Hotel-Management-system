@@ -71,10 +71,23 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
   }
 
   if (existingInvoice) {
+    // Preserve the invoice's identity (same id / createdAt) — only replace its line items.
     await tx.invoiceItem.deleteMany({ where: { invoiceId: existingInvoice.id } });
-    await tx.invoice.delete({ where: { id: existingInvoice.id } });
+    return tx.invoice.update({
+      where: { id: existingInvoice.id },
+      data: {
+        items: {
+          create: invoiceItems.map(item => ({
+            description: item.description,
+            amount: item.amount
+          }))
+        }
+      },
+      include: { items: true }
+    });
   }
 
+  // No invoice yet — create one from scratch.
   return tx.invoice.create({
     data: {
       bookingId: booking.id,

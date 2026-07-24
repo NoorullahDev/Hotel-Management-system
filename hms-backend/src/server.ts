@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import { initializeSocket } from './socket';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -62,25 +63,37 @@ app.use('/api/roles', roleRoutes);
 const frontendPath = path.join(__dirname, '../../hms-frontend/out');
 app.use(express.static(frontendPath, { extensions: ['html'] }));
 
-// For SPA routing, fallback to correct HTML files for non-API routes
+// For SPA routing, fallback to correct HTML files for non-API routes.
+// Tries in order:
+//   1. {route}.html          ← flat export (what Next.js `output: 'export'` currently produces)
+//   2. {route}/index.html    ← sub-directory export (alternate Next.js convention)
+//   3. 404.html              ← explicit not-found page
 app.use((req, res, next) => {
   if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api')) {
     if (req.path === '/' || req.path === '') {
       return res.sendFile(path.join(frontendPath, 'login.html'));
     }
-    // If a specific route like /dashboard is requested and express.static didn't find it,
-    // it usually means the HTML file exists as <route>.html
-    const htmlFile = req.path === '/' ? 'login.html' : `${req.path.replace(/^\//, '')}.html`;
-    res.sendFile(path.join(frontendPath, htmlFile), (err) => {
-      if (err) {
-        // Fallback to 404 if file doesn't exist
-        res.status(404).sendFile(path.join(frontendPath, '404.html'));
-      }
+
+    const cleanPath = req.path.replace(/^\//, '').replace(/\/$/, '');
+
+    const flatHtml   = path.join(frontendPath, `${cleanPath}.html`);
+    const indexHtml  = path.join(frontendPath, cleanPath, 'index.html');
+    const notFound   = path.join(frontendPath, '404.html');
+
+    if (fs.existsSync(flatHtml)) {
+      return res.sendFile(flatHtml);
+    }
+    if (fs.existsSync(indexHtml)) {
+      return res.sendFile(indexHtml);
+    }
+    return res.status(404).sendFile(notFound, (err) => {
+      if (err) next(err);
     });
   } else {
     next();
   }
 });
+
 
 // 404 Not Found Handler
 app.use('/api', (req, res, next) => {

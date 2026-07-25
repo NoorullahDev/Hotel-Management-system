@@ -125,12 +125,11 @@ export const getAccountSettings = asyncHandler(async (req: AuthRequest, res: Res
 
 export const updateAccountSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user!.userId;
-    const { name, username, phone, profilePhoto } = req.body as { name: string; username?: string; phone?: string; profilePhoto?: string };
-    const normalizedUsername = username ? String(username).trim().toLowerCase() : undefined;
+    const { name, phone, profilePhoto } = req.body as { name: string; phone?: string; profilePhoto?: string };
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: { name, username: normalizedUsername, phone, profilePhoto },
+      data: { name, phone, profilePhoto },
       select: { id: true, name: true, username: true, email: true, phone: true, profilePhoto: true },
     });
 

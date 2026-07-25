@@ -8,3 +8,11 @@ node_modules
 !prisma/dev.db
 *.db.bak
 uploads/*
+
+# Ignore stray root-level debug files
+/test-*.js
+/test-*.ts
+/check-*.js
+/*.jpg
+/*.png
+/*.jpeg

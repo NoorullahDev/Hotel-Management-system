@@ -34,3 +34,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Ignore stray root-level debug files
+/test-*.js
+/test-*.ts
+/check-*.js
+/*.jpg
+/*.png
+/*.jpeg

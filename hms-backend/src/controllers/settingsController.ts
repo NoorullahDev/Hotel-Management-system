@@ -505,7 +505,7 @@ export const restoreDatabase = asyncHandler(async (req: Request, res: Response) 
 
             if (!cols.includes('mustChangePassword')) {
               cols.push('mustChangePassword');
-              vals.push('0');
+              vals.push('1');
             }
             
             const newColsStr = cols.map(c => `"${c}"`).join(', ');

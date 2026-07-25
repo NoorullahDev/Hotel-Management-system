@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Building2, ShieldCheck, BarChart3, Globe, Crown, Check } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, ArrowRight, Building2, ShieldCheck, BarChart3, Globe, Crown, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Playfair_Display, Outfit } from 'next/font/google';
 import { connectSocket } from '../../../lib/socket';
@@ -224,7 +224,7 @@ function LoginContent() {
                 <label className="text-sm font-medium text-theme-muted-light">Username</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-theme-muted-light">
-                    <Mail size={18} />
+                    <User size={18} />
                   </div>
                   <input 
                     type="text" 

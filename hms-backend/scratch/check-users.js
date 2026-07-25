@@ -1,3 +1,6 @@
 const Database = require('better-sqlite3');
-const db = new Database('C:/Users/Noor Ullah/AppData/Roaming/hotel-management-system/dev.db');
-console.log(db.prepare('SELECT id, username, email FROM "User"').all());
+const db = new Database('prisma/dev.db');
+
+const users = db.prepare("SELECT * FROM User").all();
+console.log("Users in DB:");
+console.log(users);

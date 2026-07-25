@@ -110,7 +110,7 @@ function LoginContent() {
       // Redirect to dashboard (hard reload to ensure authenticated socket connection)
       window.location.href = '/dashboard';
     } catch (err: any) {
-      if (err.data?.requirePasswordChange) {
+      if (err.data?.requirePasswordChange || err.message === 'You must set a new password before continuing.') {
         setRequirePasswordChange(true);
         setError('You must set a new password before continuing.');
       } else {

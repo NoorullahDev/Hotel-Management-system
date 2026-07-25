@@ -32,10 +32,21 @@ export default function LicenseTab() {
       
       if (data?.expiryDate) {
         setCustomExpiry(new Date(data.expiryDate).toISOString().split('T')[0]);
+        if (data.lastRenewed) {
+          const daysDiff = Math.round((new Date(data.expiryDate).getTime() - new Date(data.lastRenewed).getTime()) / (1000 * 60 * 60 * 24));
+          if ([30, 90, 180, 365].includes(daysDiff)) {
+            setDurationPreset(daysDiff.toString());
+          } else {
+            setDurationPreset('custom');
+          }
+        } else {
+          setDurationPreset('custom');
+        }
       } else {
         const d = new Date();
         d.setDate(d.getDate() + 365);
         setCustomExpiry(d.toISOString().split('T')[0]);
+        setDurationPreset('365');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load license details');

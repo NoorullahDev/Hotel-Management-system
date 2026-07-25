@@ -315,3 +315,13 @@ enum BookingStatus {
   CHECKED_OUT
   CANCELLED
 }
+
+model License {
+  id             String   @id @default(uuid())
+  hwid           String   @unique
+  licenseKey     String   @unique
+  status         String   @default("Active")
+  activationDate DateTime @default(now())
+  expiryDate     DateTime
+  lastRenewed    DateTime @default(now())
+}

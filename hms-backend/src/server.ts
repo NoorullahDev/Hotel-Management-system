@@ -23,6 +23,8 @@ import guestRoutes from './routes/guestRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import auditLogRoutes from './routes/auditLogRoutes';
 import roleRoutes from './routes/roleRoutes';
+import licenseRoutes from './routes/licenseRoutes';
+import { requireLicense } from './middleware/requireLicense';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -36,6 +38,17 @@ app.use(express.json());
 // Serve static uploads
 const uploadDir = process.env.UPLOADS_DIR || path.join(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadDir));
+
+// License Middleware
+app.use('/api/license', licenseRoutes);
+
+app.use((req, res, next) => {
+  const openPaths = ['/api/auth', '/api/license', '/api/settings', '/api/health'];
+  if (openPaths.some(p => req.path.startsWith(p)) || !req.path.startsWith('/api')) {
+    return next();
+  }
+  return requireLicense(req, res, next);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);

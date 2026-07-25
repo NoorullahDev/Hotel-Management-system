@@ -76,6 +76,14 @@ export async function apiFetch<T>(
     throw new ApiError(401, 'Session expired');
   }
 
+  if (res.status === 402) {
+    const body = await res.json().catch(() => ({}));
+    if (typeof window !== 'undefined') {
+      window.location.href = '/settings?tab=license';
+    }
+    throw new ApiError(res.status, body.message || 'License Required', body);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.message || `HTTP ${res.status}`, body);

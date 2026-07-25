@@ -21,7 +21,8 @@ import CurrencyTab from './_components/CurrencyTab';
 import RolesTab from './_components/RolesTab';
 import PermissionsTab from './_components/PermissionsTab';
 import AuditLogsTab from './_components/AuditLogsTab';
-import { DollarSign, Percent, KeySquare, ScrollText } from 'lucide-react';
+import LicenseTab from './_components/LicenseTab';
+import { DollarSign, Percent, KeySquare, ScrollText, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 
 const CATEGORIES = [
@@ -36,6 +37,7 @@ const CATEGORIES = [
   { id: 'security', name: 'Security', icon: Shield },
   { id: 'backup', name: 'Backup & Restore', icon: Database },
   { id: 'audit', name: 'Audit Logs', icon: ScrollText },
+  { id: 'license', name: 'License', icon: ShieldCheck },
 ];
 
 function SettingsContent() {
@@ -62,7 +64,7 @@ function SettingsContent() {
     const defaultTab = role === 'Admin' ? 'general' : 'account';
     const tab = searchParams.get('tab') || defaultTab;
     
-    const allowedCategories = CATEGORIES.filter(c => role === 'Admin' || ['account', 'security'].includes(c.id));
+    const allowedCategories = CATEGORIES.filter(c => role === 'Admin' || ['account', 'security', 'license'].includes(c.id));
     if (tab && allowedCategories.some(c => c.id === tab)) {
       setActiveTab(tab);
     } else {
@@ -133,6 +135,8 @@ function SettingsContent() {
         return <BackupRestoreTab />;
       case 'audit':
         return <AuditLogsTab />;
+      case 'license':
+        return <LicenseTab />;
       default:
         return null;
     }
@@ -156,7 +160,7 @@ function SettingsContent() {
           <p className="text-xs text-theme-muted mt-1">Manage system configurations</p>
         </div>
         <div className="p-2 space-y-1">
-          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security'].includes(c.id)).map(category => (
+          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security', 'license'].includes(c.id)).map(category => (
             <button
               key={category.id}
               onClick={(e) => {
@@ -201,7 +205,7 @@ function SettingsContent() {
 
         {/* Mobile Tabs */}
         <div className="md:hidden flex overflow-x-auto whitespace-nowrap scrollbar-hide border-b border-theme-border bg-theme-secondary/50">
-          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security'].includes(c.id)).map(category => (
+          {CATEGORIES.filter(c => userRole === 'Admin' || ['account', 'security', 'license'].includes(c.id)).map(category => (
             <button
               key={category.id}
               onClick={(e) => {

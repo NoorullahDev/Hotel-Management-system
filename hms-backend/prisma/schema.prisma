@@ -28,7 +28,7 @@ model User {
   auditLogs              AuditLog[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
-  mustChangePassword     Boolean                 @default(true)
+  mustChange     Boolean                 @default(true)
   staff                  Staff?
   role                   Role                    @relation(fields: [roleId], references: [id])
 }

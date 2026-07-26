@@ -30,10 +30,10 @@ async function main() {
 
   // 3. Admin User
   const adminRole = roles.find(r => r.name === 'Admin');
-  const passwordHash = await bcrypt.hash('xQ9!mP2#vK8y', 10);
+  const passwordHash = await bcrypt.hash('123456', 10);
   await prisma.user.create({
     data: {
-      username: 'admin',
+      username: 'noor',
       email: 'admin@grandparkhotel.com',
       passwordHash,
       name: 'Super Admin',

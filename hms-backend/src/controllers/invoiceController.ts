@@ -6,26 +6,33 @@ import path from 'path';
 import fs from 'fs';
 import { getTaxSettings } from '../utils/settings';
 
-// 80mm thermal receipt: ~226 points width
-const RECEIPT_WIDTH = 226;
-const MARGIN = 12;
+// 80mm thermal receipt scaling up slightly for better A4/PDF readability
+const RECEIPT_WIDTH = 300;
+const MARGIN = 15;
 const CONTENT_WIDTH = RECEIPT_WIDTH - (MARGIN * 2);
 
 function drawDashedLine(doc: PDFKit.PDFDocument) {
-  const y = doc.y;
-  doc.fontSize(6).font('Helvetica').text(
-    '- '.repeat(40),
-    MARGIN, y, { width: CONTENT_WIDTH, align: 'center' }
-  );
-  doc.moveDown(0.2);
+  doc.moveTo(MARGIN, doc.y)
+     .lineTo(RECEIPT_WIDTH - MARGIN, doc.y)
+     .dash(2, { space: 2 })
+     .lineWidth(0.5)
+     .strokeColor('#888888')
+     .stroke();
+  doc.undash();
+  doc.strokeColor('#000000');
+  doc.moveDown(0.4);
 }
 
-function drawSolidLine(doc: PDFKit.PDFDocument) {
-  doc.moveTo(MARGIN, doc.y).lineTo(RECEIPT_WIDTH - MARGIN, doc.y).lineWidth(0.5).stroke();
-  doc.moveDown(0.3);
+function drawSolidLine(doc: PDFKit.PDFDocument, thickness = 0.5) {
+  doc.moveTo(MARGIN, doc.y)
+     .lineTo(RECEIPT_WIDTH - MARGIN, doc.y)
+     .lineWidth(thickness)
+     .strokeColor('#000000')
+     .stroke();
+  doc.moveDown(0.4);
 }
 
-function leftRight(doc: PDFKit.PDFDocument, left: string, right: string, fontSize = 7, bold = false) {
+function leftRight(doc: PDFKit.PDFDocument, left: string, right: string, fontSize = 9, bold = false) {
   const font = bold ? 'Helvetica-Bold' : 'Helvetica';
   const y = doc.y;
   doc.font(font).fontSize(fontSize);
@@ -95,12 +102,24 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
 
     const settingMap = Object.fromEntries(allSettings.map(s => [s.key, s.value]));
 
-    const hotelName      = (settingMap['hotelName']      as string) || legacySettings?.name        || 'Your Hotel Name';
-    const hotelAddress   = (settingMap['hotelAddress']   as string) || '';
-    const contactNumber  = (settingMap['contactNumber']  as string) || '';
-    const email          = (settingMap['email']          as string) || '';
-    const hotelLogo      = (settingMap['hotelLogo']      as string) || '';
-    const currencySymbol = (settingMap['currencySymbol'] as string) || legacySettings?.currency || 'Rs.';
+    const parseSetting = (val: any) => {
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val);
+          return typeof parsed === 'string' ? parsed : val;
+        } catch (e) {
+          return val;
+        }
+      }
+      return val;
+    };
+
+    const hotelName      = parseSetting(settingMap['hotelName'])      || legacySettings?.name        || 'Your Hotel Name';
+    const hotelAddress   = parseSetting(settingMap['hotelAddress'])   || '';
+    const contactNumber  = parseSetting(settingMap['contactNumber'])  || '';
+    const email          = parseSetting(settingMap['email'])          || '';
+    const hotelLogo      = parseSetting(settingMap['hotelLogo'])      || '';
+    const currencySymbol = parseSetting(settingMap['currencySymbol']) || legacySettings?.currency || 'Rs.';
 
     // Tax via shared utility (cached — avoids repeated DB round-trips on busy invoice periods)
     const tax    = await getTaxSettings();
@@ -215,70 +234,72 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
           logoPath = path.join(__dirname, '../..', hotelLogo);
         }
         if (logoPath && fs.existsSync(logoPath)) {
-          const logoSize = 40;
+          const logoSize = 60;
           const logoX = (RECEIPT_WIDTH - logoSize) / 2;
           doc.image(logoPath, logoX, doc.y, { width: logoSize, height: logoSize });
-          doc.y += logoSize + 4;
+          doc.y += logoSize + 8;
         }
       } catch (err) {
         console.error('Error loading logo', err);
       }
     }
 
-    doc.font('Helvetica-Bold').fontSize(12).text(hotelName, { align: 'center' });
-    if (hotelAddress) doc.font('Helvetica').fontSize(8).text(hotelAddress, { align: 'center' });
-    if (contactNumber) doc.font('Helvetica').fontSize(8).text(`Tel: ${contactNumber}`, { align: 'center' });
-    if (email) doc.font('Helvetica').fontSize(8).text(email, { align: 'center' });
-    doc.moveDown(0.5);
+    doc.font('Helvetica-Bold').fontSize(16).text(hotelName, { align: 'center' });
+    doc.moveDown(0.2);
+    if (hotelAddress) doc.font('Helvetica').fontSize(9).text(hotelAddress, { align: 'center' });
+    if (contactNumber) doc.font('Helvetica').fontSize(9).text(`Tel: ${contactNumber}`, { align: 'center' });
+    if (email) doc.font('Helvetica').fontSize(9).text(email, { align: 'center' });
+    doc.moveDown(0.6);
 
     drawDashedLine(doc);
 
     // INFO
-    leftRight(doc, `Invoice #: INV-${invoiceRef.substring(0, 8).toUpperCase()}`, `Date: ${new Date().toLocaleDateString()}`);
-    leftRight(doc, `Guest: ${booking.guest?.name || 'N/A'}`, `Room: ${booking.room?.number || 'N/A'}`);
-    leftRight(doc, `Check-in: ${new Date(booking.checkIn).toLocaleDateString()}`, `Check-out: ${new Date(booking.checkOut).toLocaleDateString()}`);
-    doc.moveDown(0.5);
+    leftRight(doc, `Invoice #: INV-${invoiceRef.substring(0, 8).toUpperCase()}`, `Date: ${new Date().toLocaleDateString()}`, 9, true);
+    leftRight(doc, `Guest: ${booking.guest?.name || 'N/A'}`, `Room: ${booking.room?.number || 'N/A'}`, 9, false);
+    leftRight(doc, `Check-in: ${new Date(booking.checkIn).toLocaleDateString()}`, `Check-out: ${new Date(booking.checkOut).toLocaleDateString()}`, 9, false);
+    doc.moveDown(0.4);
 
     drawDashedLine(doc);
 
     // ITEMS
-    doc.font('Helvetica-Bold').fontSize(8);
-    doc.text('Description', MARGIN, doc.y, { width: CONTENT_WIDTH * 0.7, continued: true });
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('Description', MARGIN, doc.y, { width: CONTENT_WIDTH * 0.65, continued: true });
     doc.text('Amount', { align: 'right' });
-    doc.moveDown(0.2);
-    drawSolidLine(doc);
+    doc.moveDown(0.3);
+    drawSolidLine(doc, 1);
 
     receiptItems.forEach(item => {
-      leftRight(doc, item.description, `${currencySymbol} ${item.amount.toFixed(2)}`, 7, false);
-      doc.moveDown(0.1);
+      leftRight(doc, item.description, `${currencySymbol} ${item.amount.toFixed(2)}`, 9, false);
+      doc.moveDown(0.2);
     });
     
     doc.moveDown(0.2);
-    drawSolidLine(doc);
+    drawSolidLine(doc, 0.5);
 
     // TOTALS
-    leftRight(doc, 'Subtotal:', `${currencySymbol} ${subTotal.toFixed(2)}`, 8, true);
-    leftRight(doc, `Tax (${taxPct}%):`, `${currencySymbol} ${taxAmount.toFixed(2)}`, 8, false);
+    leftRight(doc, 'Subtotal:', `${currencySymbol} ${subTotal.toFixed(2)}`, 10, true);
+    leftRight(doc, `Tax (${taxPct}%):`, `${currencySymbol} ${taxAmount.toFixed(2)}`, 10, false);
     if (discountAmount < 0) {
-      leftRight(doc, 'Discount:', `-${currencySymbol} ${Math.abs(discountAmount).toFixed(2)}`, 8, false);
+      leftRight(doc, 'Discount:', `-${currencySymbol} ${Math.abs(discountAmount).toFixed(2)}`, 10, false);
     }
     
-    doc.moveDown(0.2);
-    drawSolidLine(doc);
-    leftRight(doc, 'Grand Total:', `${currencySymbol} ${grandTotal.toFixed(2)}`, 10, true);
+    doc.moveDown(0.3);
+    drawSolidLine(doc, 1.5);
+    leftRight(doc, 'Grand Total:', `${currencySymbol} ${grandTotal.toFixed(2)}`, 14, true);
     
-    doc.moveDown(0.2);
-    leftRight(doc, 'Paid:', `${currencySymbol} ${totalPaid.toFixed(2)}`, 8, false);
-    leftRight(doc, 'Balance Due:', `${currencySymbol} ${balanceDue.toFixed(2)}`, 8, true);
+    doc.moveDown(0.3);
+    drawSolidLine(doc, 0.5);
+    leftRight(doc, 'Paid:', `${currencySymbol} ${totalPaid.toFixed(2)}`, 10, false);
+    leftRight(doc, 'Balance Due:', `${currencySymbol} ${balanceDue.toFixed(2)}`, 11, true);
     
-    doc.moveDown(0.5);
+    doc.moveDown(0.8);
     drawDashedLine(doc);
-    doc.font('Helvetica').fontSize(8).text('Thank you for your stay!', { align: 'center' });
+    doc.font('Helvetica-Oblique').fontSize(10).text('Thank you for your stay!', { align: 'center' });
     
     // Add just a little bit of gap
-    doc.moveDown(1.2);
+    doc.moveDown(1.5);
     
-    doc.font('Helvetica').fontSize(7).fillColor('#000000')
+    doc.font('Helvetica').fontSize(8).fillColor('#555555')
        .text('Software is developed by Eagle Nest Creation', { align: 'center' });
     doc.text('Contact: 03405545150', { align: 'center' });
     

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, MapPin, Phone, Mail, User, Star, Crown, Edit, Trash2, XCircle } from 'lucide-react';
+import { X, Calendar, MapPin, Phone, Mail, User, Star, Crown, Edit, Trash2, XCircle, Users } from 'lucide-react';
 import EditGuestModal from './EditGuestModal';
 import EditBookingModal from './EditBookingModal';
 import { CalendarClock } from 'lucide-react';
@@ -196,6 +196,32 @@ export default function GuestDetailsSidebar({ bookingId, onClose, onSuccess, onC
                     </div>
                   </div>
                 </div>
+                
+                {/* Additional Guests */}
+                {booking.additionalGuests && Array.isArray(booking.additionalGuests) && booking.additionalGuests.length > 0 && (
+                  <div className="bg-theme-card shadow-soft rounded-xl border border-theme-border p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Users size={16} className="text-theme-muted" />
+                      <h4 className="text-sm font-bold text-theme-text">Additional Guests</h4>
+                    </div>
+                    <div className="space-y-3">
+                      {booking.additionalGuests.map((ag: any, i: number) => (
+                        <div key={i} className="flex flex-col gap-1 pb-3 border-b border-theme-border last:border-0 last:pb-0">
+                          <div className="flex justify-between">
+                            <span className="text-xs font-bold text-theme-text">{ag.name}</span>
+                            <span className="text-[10px] bg-theme-secondary text-theme-muted-light px-2 py-0.5 rounded-full border border-theme-border">{ag.relationship || 'Guest'}</span>
+                          </div>
+                          {(ag.phone || ag.idNumber) && (
+                            <div className="flex justify-between text-[11px] text-theme-muted">
+                              <span>{ag.phone || 'No Phone'}</span>
+                              <span>{ag.idNumber || 'No ID'}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             

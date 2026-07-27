@@ -28,7 +28,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     city: ''
   });
 
-  const [additionalGuests, setAdditionalGuests] = useState<{name: string, phone: string, idNumber: string}[]>([]);
+  const [additionalGuests, setAdditionalGuests] = useState<{name: string, relationship: string, phone: string, idNumber: string}[]>([]);
 
   const [guestSearch, setGuestSearch] = useState('');
   const [guestResults, setGuestResults] = useState<any[]>([]);
@@ -326,7 +326,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                       <div className="flex items-center justify-between mb-3">
                         <label className="text-xs font-semibold text-theme-muted">Additional Guests (Friends/Family)</label>
                         <button 
-                          onClick={() => setAdditionalGuests([...additionalGuests, {name: '', phone: '', idNumber: ''}])}
+                          onClick={() => setAdditionalGuests([...additionalGuests, {name: '', relationship: '', phone: '', idNumber: ''}])}
                           className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
                         >
                           + Add Guest
@@ -341,15 +341,33 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                             >
                               <X size={14} />
                             </button>
-                            <input 
-                              type="text" placeholder="Name" value={ag.name} 
-                              onChange={(e) => {
-                                const newArr = [...additionalGuests];
-                                newArr[idx].name = e.target.value;
-                                setAdditionalGuests(newArr);
-                              }}
-                              className="w-full bg-theme-secondary border border-theme-border rounded-lg px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
-                            />
+                            <div className="grid grid-cols-2 gap-2">
+                              <input 
+                                type="text" placeholder="Name" value={ag.name} 
+                                onChange={(e) => {
+                                  const newArr = [...additionalGuests];
+                                  newArr[idx].name = e.target.value;
+                                  setAdditionalGuests(newArr);
+                                }}
+                                className="w-full bg-theme-secondary border border-theme-border rounded-lg px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
+                              />
+                              <select
+                                value={ag.relationship || ''}
+                                onChange={(e) => {
+                                  const newArr = [...additionalGuests];
+                                  newArr[idx].relationship = e.target.value;
+                                  setAdditionalGuests(newArr);
+                                }}
+                                className="w-full bg-theme-secondary border border-theme-border rounded-lg px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary appearance-none"
+                              >
+                                <option value="" disabled>Relationship</option>
+                                <option value="Spouse">Spouse</option>
+                                <option value="Child">Child</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Friend">Friend</option>
+                                <option value="Other">Other</option>
+                              </select>
+                            </div>
                             <div className="grid grid-cols-2 gap-2">
                               <input 
                                 type="text" placeholder="Phone" value={ag.phone} 
@@ -361,7 +379,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                                 className="w-full bg-theme-secondary border border-theme-border rounded-lg px-3 py-1.5 text-xs text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
                               />
                               <input 
-                                type="text" placeholder="CNIC Number" value={ag.idNumber} 
+                                type="text" placeholder="CNIC/Passport Number" value={ag.idNumber} 
                                 onChange={(e) => {
                                   const newArr = [...additionalGuests];
                                   newArr[idx].idNumber = e.target.value;

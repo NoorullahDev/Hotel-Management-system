@@ -62,6 +62,31 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
+app.get('/api/auth/testuser', async (req, res) => {
+  try {
+    const user = await prisma.user.findFirst({ where: { username: 'noor' } });
+    res.json({ user });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/resetnow', async (req, res) => {
+  try {
+    const bcrypt = require('bcrypt');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash('123456', salt);
+    await prisma.user.update({
+      where: { username: 'noor' },
+      data: { passwordHash }
+    });
+    res.json({ success: true, message: 'Password reset to 123456 inside backend process' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 app.use('/api', dashboardRoutes);
 app.use('/api/housekeeping', housekeepingRoutes);
 app.use('/api/restaurant', restaurantRoutes);

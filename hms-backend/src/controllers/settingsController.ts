@@ -82,11 +82,11 @@ export const updateSettings = asyncHandler(async (req: AuthRequest, res: Respons
 
     // Batch upserts sequentially (SQLite doesn't support parallel writes)
     for (const [key, value] of Object.entries(updates)) {
-      const safeValue = (typeof value === 'object' && value !== null) ? value : JSON.stringify(value);
+      // Pass value directly. Prisma automatically handles JSON serialization for Json fields.
       await prisma.setting.upsert({
         where:  { key },
-        update: { category, value: safeValue as any },
-        create: { key, category, value: safeValue as any },
+        update: { category, value: value as any },
+        create: { key, category, value: value as any },
       });
     }
 

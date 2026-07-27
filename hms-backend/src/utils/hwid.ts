@@ -1,29 +1,31 @@
 import * as os from 'os';
 import * as crypto from 'crypto';
-import { execSync } from 'child_process';
 
 export function getHWID(): string {
+  const cpus = os.cpus();
+  const networkInterfaces = os.networkInterfaces();
+
   let hwData = '';
 
-  try {
-    if (os.platform() === 'win32') {
-      hwData = execSync('reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', { encoding: 'utf8' });
-    } else if (os.platform() === 'linux') {
-      hwData = execSync('cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null || true', { encoding: 'utf8' });
-    } else if (os.platform() === 'darwin') {
-      hwData = execSync('ioreg -rd1 -c IOPlatformExpertDevice | grep IOPlatformUUID', { encoding: 'utf8' });
-    }
-  } catch (e) {
-    // Ignore errors and use fallback
+  if (cpus && cpus.length > 0) {
+    hwData += cpus[0].model;
   }
 
-  // Fallback if OS-level ID fails
-  if (!hwData || hwData.trim() === '') {
-    const cpus = os.cpus();
-    if (cpus && cpus.length > 0) {
-      hwData += cpus[0].model;
+  for (const key in networkInterfaces) {
+    const iface = networkInterfaces[key];
+    if (iface) {
+      for (const alias of iface) {
+        if (!alias.internal && alias.mac !== '00:00:00:00:00:00') {
+          hwData += alias.mac;
+          break; // Use the first external MAC address
+        }
+      }
     }
-    hwData += os.hostname() + os.platform() + os.arch();
+  }
+
+  // Fallback if no network or cpu info
+  if (!hwData) {
+    hwData = os.hostname() + os.platform() + os.arch();
   }
 
   const hash = crypto.createHash('sha256').update(hwData).digest('hex').toUpperCase();

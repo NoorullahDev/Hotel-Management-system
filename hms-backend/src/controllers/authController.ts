@@ -42,7 +42,28 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     const isMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials', debug: 'Password mismatch' });
+      const newAttempts = user.failedLoginAttempts + 1;
+      const updates: any = { failedLoginAttempts: newAttempts };
+      let message = 'Invalid credentials';
+      
+      if (newAttempts >= 5) {
+        // Lock for 15 minutes
+        const lockTime = new Date();
+        lockTime.setMinutes(lockTime.getMinutes() + 15);
+        updates.lockedUntil = lockTime;
+        message = 'Account locked due to too many failed attempts. Please try again in 15 minutes.';
+      } else if (newAttempts === 3) {
+        message = 'Invalid credentials. You have 2 chances left.';
+      } else if (newAttempts === 4) {
+        message = 'Invalid credentials. You have 1 chance left.';
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: updates,
+      });
+
+      return res.status(newAttempts >= 5 ? 403 : 401).json({ message });
     }
 
     // Handle password change enforcement
@@ -204,22 +225,10 @@ export const googleLogin = asyncHandler(async (req: Request, res: Response) => {
     const googleUser = await googleRes.json();
     const email = googleUser.email;
 
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email },
       include: { role: true },
     });
-
-    if (!user) {
-      user = await prisma.user.findFirst({
-        where: { 
-          OR: [
-            { email: email },
-            { username: email }
-          ]
-        },
-        include: { role: true },
-      });
-    }
 
     if (!user) {
       return res.status(404).json({ message: 'Account not found for this Google email. Please register or login with your correct email.' });

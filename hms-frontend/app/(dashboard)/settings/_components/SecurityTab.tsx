@@ -83,6 +83,12 @@ export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedCha
       setNewUsername('');
       setHasUnsavedChanges?.(false);
       
+      // Update rememberedUsername so the login page doesn't autofill the old one
+      const remembered = localStorage.getItem('rememberedUsername');
+      if (remembered) {
+        localStorage.setItem('rememberedUsername', newUsername.trim().toLowerCase());
+      }
+      
       setTimeout(() => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');

@@ -4,9 +4,14 @@ import { authenticateJWT, requirePermission } from '../middleware/authMiddleware
 
 const router = express.Router();
 
-router.use(authenticateJWT);
-
 const canManageRestaurant = requirePermission('manage_restaurant');
+
+// Public routes (no auth required - for guest menu scanning)
+router.get('/menu', getMenuItems);
+router.get('/categories', getCategories);
+
+// All routes below require authentication
+router.use(authenticateJWT);
 
 router.get('/orders', canManageRestaurant, getOrders);
 router.post('/orders', canManageRestaurant, createOrder);
@@ -14,11 +19,9 @@ router.patch('/orders/:id/status', canManageRestaurant, updateOrderStatus);
 
 router.post('/verify-guest', canManageRestaurant, verifyGuest);
 
-router.get('/categories', canManageRestaurant, getCategories);
 router.post('/categories', canManageRestaurant, createCategory);
 router.delete('/categories/:id', canManageRestaurant, deleteCategory);
 
-router.get('/menu', canManageRestaurant, getMenuItems);
 router.post('/menu', canManageRestaurant, createMenuItem);
 router.put('/menu/:id', canManageRestaurant, updateMenuItem);
 router.delete('/menu/:id', canManageRestaurant, deleteMenuItem);

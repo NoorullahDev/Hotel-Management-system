@@ -11,11 +11,9 @@ function GuestPortalContent() {
   const searchParams = useSearchParams();
   const roomNumber = searchParams.get('room') || '';
   
-  const [lastName, setLastName] = useState('');
-  const [verified, setVerified] = useState(false);
+  const [verified, setVerified] = useState(true);
   const [guestInfo, setGuestInfo] = useState<any>(null);
   const [bookingId, setBookingId] = useState('');
-  const [error, setError] = useState('');
 
   const [activeTab, setActiveTab] = useState<string>('All Items');
   const [cart, setCart] = useState<{item: any, quantity: number, notes: string}[]>([]);
@@ -58,7 +56,6 @@ function GuestPortalContent() {
       const data = await api.get<any>('/api/restaurant/categories');
       return [{ id: 'all', name: 'All Items' }, ...data];
     },
-    enabled: verified
   });
 
   const { data: menuItems = [] } = useQuery({
@@ -66,32 +63,16 @@ function GuestPortalContent() {
     queryFn: async () => {
       const data = await api.get<any>('/api/restaurant/menu');
       return data;
-    },
-    enabled: verified
+    }
   });
 
   useEffect(() => {
-    if (verified) {
-      const socket = io(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}`);
-      socket.on('order:status_changed', (order: any) => {
-        setMyOrders(prev => prev.map(o => o.id === order.id ? order : o));
-      });
-      return () => { socket.disconnect(); };
-    }
-  }, [verified]);
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const data = await api.post<any>('/api/restaurant/verify-guest', { roomNumber, lastName });
-      setVerified(true);
-      setGuestInfo(data.guest);
-      setBookingId(data.bookingId);
-      setError('');
-    } catch (err: any) {
-      setError(err.message || 'Verification failed');
-    }
-  };
+    const socket = io(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}`);
+    socket.on('order:status_changed', (order: any) => {
+      setMyOrders(prev => prev.map(o => o.id === order.id ? order : o));
+    });
+    return () => { socket.disconnect(); };
+  }, []);
 
   const addToCart = (item: any) => {
     setCart(prev => {
@@ -139,34 +120,6 @@ function GuestPortalContent() {
   const filteredItems = activeTab === 'All Items' ? menuItems : menuItems.filter((i: any) => i.category === activeTab);
   const cartTotal = cart.reduce((acc, c) => acc + (Number(c.item.price) * c.quantity), 0);
 
-  if (!verified) {
-    return (
-      <div className="min-h-screen bg-theme-main flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-theme-card shadow-soft border border-theme-border rounded-3xl p-8 shadow-2xl">
-          <div className="w-16 h-16 bg-primary/20 text-primary rounded-2xl flex items-center justify-center mb-6 mx-auto active:scale-95 shadow-md">
-            <UtensilsCrossed size={32} />
-          </div>
-          <h1 className="text-2xl font-bold text-theme-text text-center mb-2">Welcome to In-Room Dining</h1>
-          <p className="text-theme-muted text-center text-sm mb-8">Please verify your details to view the menu and place an order.</p>
-          
-          <form onSubmit={handleVerify} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Room Number</label>
-              <input type="text" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none" value={roomNumber} disabled />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Last Name</label>
-              <input type="text" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary transition-colors" value={lastName} onChange={e => setLastName(e.target.value)} required placeholder="Enter last name on reservation" />
-            </div>
-            {error && <div className="text-red-500 text-sm font-medium text-center">{error}</div>}
-            <button type="submit" className="bg-primary hover:bg-primary/90 text-white font-bold py-3.5 rounded-xl transition-colors mt-2 active:scale-95 shadow-md">
-              Access Menu
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-theme-main pb-24 font-sans text-theme-text">
@@ -175,7 +128,7 @@ function GuestPortalContent() {
         <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-lg font-bold">In-Room Dining</h1>
-            <p className="text-xs text-theme-muted">Room {roomNumber} • {guestInfo?.name}</p>
+            <p className="text-xs text-theme-muted">Room {roomNumber}{guestInfo?.name ? ` • ${guestInfo.name}` : ''}</p>
           </div>
           <button onClick={() => setIsCartOpen(true)} className="relative p-2 bg-theme-main rounded-full border border-theme-border">
             <ShoppingCart size={20} />

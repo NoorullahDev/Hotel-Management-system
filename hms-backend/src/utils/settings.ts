@@ -66,6 +66,7 @@ export interface PublicSettings {
   timeZone: string;
   taxRate: number;
   taxName: string;
+  localIp?: string;
 }
 
 interface PublicSettingsCache {
@@ -127,6 +128,7 @@ export async function getPublicSettingsData(): Promise<PublicSettings> {
     timeZone:               (settingMap['timeZone'] as string)               || 'Asia/Karachi',
     taxRate,
     taxName:                (settingMap['name'] as string)                   || 'GST',
+    localIp:                getSmarterLocalIp(),
   };
 
   _publicCache = { value, expiresAt: now + PUBLIC_CACHE_TTL_MS };
@@ -138,4 +140,33 @@ export async function getPublicSettingsData(): Promise<PublicSettings> {
  */
 export function invalidatePublicSettingsCache(): void {
   _publicCache = null;
+}
+
+function getSmarterLocalIp(): string {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  // Prefer Wi-Fi interface
+  for (const name of Object.keys(interfaces)) {
+    if (name.toLowerCase().includes('wi-fi') || name.toLowerCase().includes('wlan')) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+      }
+    }
+  }
+  // Skip VirtualBox (192.168.56.x) addresses
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        if (iface.address.startsWith('192.168.56.')) continue;
+        return iface.address;
+      }
+    }
+  }
+  // Fallback to anything
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return '127.0.0.1';
 }

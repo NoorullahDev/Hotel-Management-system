@@ -349,7 +349,8 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
         room: { include: { roomType: true } },
         guest: true,
         payments: true,
-        foodOrders: { include: { items: true } }
+        foodOrders: { include: { items: true } },
+        serviceOrders: { include: { items: true } }
       }
     });
 
@@ -406,7 +407,9 @@ export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Respon
       where: { id },
       include: {
         room: { include: { roomType: true } },
-        foodOrders: { include: { items: true } }
+        guest: true,
+        foodOrders: { include: { items: true } },
+        serviceOrders: { include: { items: true } }
       }
     });
 

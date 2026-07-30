@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Edit2, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import { Plus, Trash2, Edit2, Image as ImageIcon, UploadCloud, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export default function MenuManagement({ currency }: { currency: string }) {
@@ -11,10 +11,17 @@ export default function MenuManagement({ currency }: { currency: string }) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
-  
-  const [newItem, setNewItem] = useState({ name: '', category: '', price: '' });
+  const [saving, setSaving] = useState(false);
+
+  const [newItem, setNewItem] = useState({
+    name: '',
+    category: '',
+    price: '',
+    description: '',
+    preparationTime: '',
+    isAvailable: true,
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   
   const [newCategoryName, setNewCategoryName] = useState('');
 
@@ -44,7 +51,7 @@ export default function MenuManagement({ currency }: { currency: string }) {
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      setUploading(true);
+      setSaving(true);
       
       let imageUrl = '';
       if (selectedFile) {
@@ -54,26 +61,43 @@ export default function MenuManagement({ currency }: { currency: string }) {
         imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}` + uploadData.imageUrl;
       }
 
+      const payload = {
+        name: newItem.name,
+        category: newItem.category,
+        price: parseFloat(newItem.price),
+        description: newItem.description || undefined,
+        preparationTime: newItem.preparationTime ? parseInt(newItem.preparationTime, 10) : undefined,
+        isAvailable: newItem.isAvailable,
+        imageUrl: imageUrl || undefined,
+      };
+
       if (editingId) {
-        await api.put(`/api/restaurant/menu/${editingId}`, { ...newItem, price: parseFloat(newItem.price), imageUrl: imageUrl || undefined });
+        await api.put(`/api/restaurant/menu/${editingId}`, payload);
       } else {
-        await api.post('/api/restaurant/menu', { ...newItem, price: parseFloat(newItem.price), imageUrl });
+        await api.post('/api/restaurant/menu', payload);
       }
       
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
       setIsAdding(false);
       setEditingId(null);
-      setNewItem({ name: '', category: categories[1]?.name || '', price: '' });
+      setNewItem({ name: '', category: categories[1]?.name || '', price: '', description: '', preparationTime: '', isAvailable: true });
       setSelectedFile(null);
     } catch (error) {
       console.error(error);
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   };
 
   const handleEditClick = (item: any) => {
-    setNewItem({ name: item.name, category: item.category, price: String(item.price) });
+    setNewItem({
+      name: item.name,
+      category: item.category,
+      price: String(item.price),
+      description: item.description || '',
+      preparationTime: item.preparationTime != null ? String(item.preparationTime) : '',
+      isAvailable: item.isAvailable !== false,
+    });
     setEditingId(item.id);
     setIsAdding(true);
   };
@@ -137,7 +161,7 @@ export default function MenuManagement({ currency }: { currency: string }) {
           <button 
             onClick={() => {
               setEditingId(null);
-              setNewItem(prev => ({ ...prev, name: '', price: '', category: activeTab !== 'All Items' ? activeTab : (categories[1]?.name || '') }));
+              setNewItem(prev => ({ ...prev, name: '', price: '', description: '', preparationTime: '', isAvailable: true, category: activeTab !== 'All Items' ? activeTab : (categories[1]?.name || '') }));
               setIsAdding(true);
             }}
             className="bg-primary hover:bg-primary/90 text-white border border-primary/50 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm active:scale-95 shadow-md"
@@ -157,14 +181,29 @@ export default function MenuManagement({ currency }: { currency: string }) {
                 <ImageIcon size={24} className="text-theme-muted" />
               )}
             </div>
-            <div className="flex-1 flex flex-col justify-center">
+            <div className="flex-1 flex flex-col justify-center min-w-0">
               <h4 className="text-sm font-bold text-theme-text line-clamp-1">{item.name}</h4>
               <p className="text-xs text-theme-muted">{item.category}</p>
+              {item.description && (
+                <p className="text-xs text-theme-muted-light line-clamp-1 mt-0.5">{item.description}</p>
+              )}
               <div className="flex justify-between items-center mt-2">
-                <span className="text-sm font-bold text-blue-400">{currency} {Number(item.price).toFixed(2)}</span>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => handleEditClick(item)} className="text-theme-muted hover:text-blue-400"><Edit2 size={14}/></button>
-                  <button onClick={() => handleDeleteItem(item.id)} className="text-theme-muted hover:text-red-400"><Trash2 size={14}/></button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-blue-400">{currency} {Number(item.price).toFixed(2)}</span>
+                  {item.preparationTime && (
+                    <span className="flex items-center gap-1 text-[10px] text-theme-muted-light">
+                      <Clock size={10} /> {item.preparationTime}m
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${item.isAvailable !== false ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                    {item.isAvailable !== false ? '● Available' : '● Out of Stock'}
+                  </span>
+                  <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleEditClick(item)} className="text-theme-muted hover:text-blue-400"><Edit2 size={14}/></button>
+                    <button onClick={() => handleDeleteItem(item.id)} className="text-theme-muted hover:text-red-400"><Trash2 size={14}/></button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -177,31 +216,69 @@ export default function MenuManagement({ currency }: { currency: string }) {
         )}
       </div>
 
+      {/* Add / Edit Item Modal */}
       {isAdding && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleAddItem} className="bg-theme-card shadow-soft border border-theme-border rounded-2xl w-full max-w-md flex flex-col shadow-2xl p-6 gap-5">
+          <form onSubmit={handleAddItem} className="bg-theme-card shadow-soft border border-theme-border rounded-2xl w-full max-w-lg flex flex-col shadow-2xl p-6 gap-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <h3 className="text-xl font-bold text-theme-text">{editingId ? 'Edit Menu Item' : 'Add Menu Item'}</h3>
             
+            {/* Name */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Name</label>
-              <input type="text" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+              <label className="text-sm font-medium text-theme-muted-light">Item Name *</label>
+              <input type="text" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required placeholder="e.g. Grilled Chicken" />
             </div>
             
+            {/* Category */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Category</label>
-              <select className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} required>
+              <label className="text-sm font-medium text-theme-muted-light">Category *</label>
+              <select className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} required>
                 <option value="" disabled>Select Category</option>
                 {categories.filter((c:any) => c.name !== 'All Items').map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             
+            {/* Price */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Price</label>
-              <input type="number" step="0.01" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} required />
+              <label className="text-sm font-medium text-theme-muted-light">Price ({currency}) *</label>
+              <input type="number" step="0.01" min="0" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} required placeholder="0.00" />
             </div>
 
+            {/* Description */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-theme-muted-light">Dish Image (Optional)</label>
+              <label className="text-sm font-medium text-theme-muted-light">Description <span className="text-theme-muted text-xs">(Optional)</span></label>
+              <textarea className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary resize-none h-20 text-sm" value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} placeholder="Brief description of the item..." />
+            </div>
+
+            {/* Preparation Time */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-theme-muted-light">Preparation Time <span className="text-theme-muted text-xs">(Optional — minutes)</span></label>
+              <input type="number" min="1" className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none focus:border-primary" value={newItem.preparationTime} onChange={e => setNewItem({...newItem, preparationTime: e.target.value})} placeholder="e.g. 15" />
+            </div>
+
+            {/* Availability */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-theme-muted-light">Availability</label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewItem({...newItem, isAvailable: true})}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border font-medium text-sm transition-colors ${newItem.isAvailable ? 'bg-green-500/10 border-green-500/40 text-green-400' : 'bg-theme-main border-theme-border text-theme-muted hover:bg-theme-hover'}`}
+                >
+                  <CheckCircle size={16} /> Available
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewItem({...newItem, isAvailable: false})}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border font-medium text-sm transition-colors ${!newItem.isAvailable ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-theme-main border-theme-border text-theme-muted hover:bg-theme-hover'}`}
+                >
+                  <XCircle size={16} /> Out of Stock
+                </button>
+              </div>
+            </div>
+
+            {/* Image */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-theme-muted-light">Dish Image <span className="text-theme-muted text-xs">(Optional)</span></label>
               <label className="border-2 border-dashed border-theme-border hover:border-primary/50 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors bg-theme-main">
                 <UploadCloud size={24} className="text-theme-muted" />
                 <span className="text-sm text-theme-muted">{selectedFile ? selectedFile.name : 'Click to upload image'}</span>
@@ -209,16 +286,17 @@ export default function MenuManagement({ currency }: { currency: string }) {
               </label>
             </div>
             
-            <div className="flex justify-end gap-3 mt-4">
-              <button type="button" onClick={() => setIsAdding(false)} className="px-5 py-2.5 rounded-xl text-theme-muted-light hover:bg-theme-hover">Cancel</button>
-              <button type="submit" disabled={uploading} className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium disabled:opacity-50 active:scale-95 shadow-md">
-                {uploading ? 'Uploading...' : (editingId ? 'Save Changes' : 'Add Item')}
+            <div className="flex justify-end gap-3 mt-2">
+              <button type="button" onClick={() => { setIsAdding(false); setEditingId(null); setSelectedFile(null); }} className="px-5 py-2.5 rounded-xl text-theme-muted-light hover:bg-theme-hover">Cancel</button>
+              <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-medium disabled:opacity-50 active:scale-95 shadow-md">
+                {saving ? 'Saving...' : (editingId ? 'Save Changes' : 'Add Item')}
               </button>
             </div>
           </form>
         </div>
       )}
 
+      {/* Manage Categories Modal */}
       {isManagingCategories && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl w-full max-w-md flex flex-col shadow-2xl p-6 gap-5">
@@ -239,7 +317,7 @@ export default function MenuManagement({ currency }: { currency: string }) {
               <input 
                 type="text" 
                 placeholder="New Category Name" 
-                className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none flex-1 text-sm" 
+                className="bg-theme-main border border-theme-border rounded-xl px-4 py-3 text-theme-text outline-none flex-1 text-sm focus:border-primary" 
                 value={newCategoryName} 
                 onChange={e => setNewCategoryName(e.target.value)} 
                 required 

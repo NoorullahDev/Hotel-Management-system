@@ -13,6 +13,7 @@ interface GlobalSettings {
   currencySymbol: string;
   taxRate: number;
   taxName: string;
+  localIp?: string;
   loading: boolean;
 }
 
@@ -44,6 +45,7 @@ export function useGlobalSettings() {
           currencySymbol: data.currencySymbol || 'Rs.',
           taxRate: data.taxRate !== undefined ? data.taxRate : 0,
           taxName: data.taxName || 'Tax',
+          localIp: data.localIp,
           loading: false,
         });
       } catch (err) {

@@ -14,35 +14,57 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
   
   const invoiceItems: { description: string, qty?: number, rate?: Prisma.Decimal, amount: Prisma.Decimal }[] = [];
   
-  const totalRoomCharges = booking.room.price.mul(nights);
+  // Always coerce price to Decimal to handle SQLite returning strings/numbers
+  const roomPrice = new Decimal(booking.room.price.toString());
+  const totalRoomCharges = roomPrice.mul(nights);
   invoiceItems.push({ 
     description: `Room Charges (${nights} nights)`, 
     qty: nights,
-    rate: booking.room.price,
+    rate: roomPrice,
     amount: totalRoomCharges 
   });
   
   let totalFoodCharges = new Decimal(0);
-  for (const order of booking.foodOrders) {
-    for (const item of order.items) {
-      const itemTotal = item.price.mul(item.quantity);
+  for (const order of (booking.foodOrders || [])) {
+    for (const item of (order.items || [])) {
+      // Coerce price to Decimal — SQLite/Prisma may return strings or plain numbers
+      const itemPrice = new Decimal(item.price.toString());
+      const qty = Number(item.quantity) || 1;
+      const itemTotal = itemPrice.mul(qty);
       totalFoodCharges = totalFoodCharges.plus(itemTotal);
       invoiceItems.push({ 
-        description: `Restaurant (${item.itemName} x${item.quantity})`, 
-        qty: item.quantity,
-        rate: item.price,
+        description: `Restaurant — ${item.itemName}`, 
+        qty,
+        rate: itemPrice,
         amount: itemTotal 
       });
     }
   }
 
-  const subTotal = totalRoomCharges.plus(totalFoodCharges);
+  let totalServiceCharges = new Decimal(0);
+  for (const order of (booking.serviceOrders || [])) {
+    for (const item of (order.items || [])) {
+      const itemPrice = new Decimal(item.price.toString());
+      const qty = Number(item.quantity) || 1;
+      const itemTotal = itemPrice.mul(qty);
+      totalServiceCharges = totalServiceCharges.plus(itemTotal);
+      invoiceItems.push({ 
+        description: `Housekeeping (${item.category}) — ${item.serviceName}`, 
+        qty,
+        rate: itemPrice,
+        amount: itemTotal 
+      });
+    }
+  }
+
+  const subTotal = totalRoomCharges.plus(totalFoodCharges).plus(totalServiceCharges);
   const taxAmount = subTotal.mul(taxRate);
   
   invoiceItems.push({ description: `${taxName} (${taxPct}%)`, amount: taxAmount });
 
   return { items: invoiceItems, subTotal, taxAmount, nights };
 };
+
 
 // Shared invoice generation logic
 export const generateInvoice = async (tx: any, booking: any, discount: number = 0) => {
@@ -108,7 +130,9 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
       where: { id: bookingId },
       include: {
         room: { include: { roomType: true } },
+        guest: true, 
         foodOrders: { include: { items: true } },
+        serviceOrders: { include: { items: true } },
         payments: true
       }
     });

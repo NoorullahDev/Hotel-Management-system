@@ -53,25 +53,40 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
   });
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
-    const { roomNumber, items, notes } = req.body;
+    const { roomNumber, bookingId: directBookingId, items, notes } = req.body;
 
-    if (!roomNumber || !items || !items.length) {
-      return res.status(400).json({ message: 'roomNumber and items are required' });
+    if (!items || !items.length) {
+      return res.status(400).json({ message: 'items are required' });
     }
 
-    // Find the active booking for this room
-    const room = await prisma.room.findUnique({ where: { number: String(roomNumber) } });
-    if (!room) return res.status(404).json({ message: 'Room not found' });
+    let booking: any = null;
+    let room: any = null;
 
-    const booking = await prisma.booking.findFirst({
-      where: {
-        roomId: room.id,
-        status: 'CHECKED_IN'
+    if (directBookingId) {
+      // Admin selected a room from dropdown — booking ID supplied directly
+      booking = await prisma.booking.findUnique({
+        where: { id: String(directBookingId) },
+        include: { room: true }
+      });
+      if (!booking) return res.status(404).json({ message: 'Booking not found' });
+      if (booking.status !== 'CHECKED_IN') {
+        return res.status(400).json({ message: 'Booking is not currently checked in' });
       }
-    });
+      room = booking.room;
+    } else if (roomNumber) {
+      // Legacy path — find active booking by room number
+      room = await prisma.room.findUnique({ where: { number: String(roomNumber) } });
+      if (!room) return res.status(404).json({ message: 'Room not found' });
 
-    if (!booking) {
-      return res.status(400).json({ message: 'No active CHECKED_IN booking found for this room' });
+      booking = await prisma.booking.findFirst({
+        where: { roomId: room.id, status: 'CHECKED_IN' }
+      });
+
+      if (!booking) {
+        return res.status(400).json({ message: 'No active CHECKED_IN booking found for this room' });
+      }
+    } else {
+      return res.status(400).json({ message: 'roomNumber or bookingId is required' });
     }
 
     let hasInvalidQuantity = false;
@@ -201,7 +216,7 @@ export const verifyGuest = asyncHandler(async (req: Request, res: Response) => {
   });
 
 export const createMenuItem = asyncHandler(async (req: Request, res: Response) => {
-    const { name, category, price, imageUrl } = req.body;
+    const { name, category, price, imageUrl, description, preparationTime, isAvailable } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return res.status(400).json({ message: 'Name must be a non-empty string' });
@@ -212,14 +227,24 @@ export const createMenuItem = asyncHandler(async (req: Request, res: Response) =
       return res.status(400).json({ message: 'Price must be a valid positive number' });
     }
 
+    const numPrepTime = preparationTime !== undefined && preparationTime !== '' ? parseInt(preparationTime, 10) : null;
+
     const item = await prisma.menuItem.create({
-      data: { name: name.trim(), category, price: numPrice, imageUrl }
+      data: {
+        name: name.trim(),
+        category,
+        price: numPrice,
+        imageUrl: imageUrl || null,
+        description: description?.trim() || null,
+        preparationTime: numPrepTime,
+        isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+      }
     });
     res.status(201).json(item);
   });
 
 export const updateMenuItem = asyncHandler(async (req: Request, res: Response) => {
-    const { name, category, price, imageUrl } = req.body;
+    const { name, category, price, imageUrl, description, preparationTime, isAvailable } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return res.status(400).json({ message: 'Name must be a non-empty string' });
@@ -230,9 +255,19 @@ export const updateMenuItem = asyncHandler(async (req: Request, res: Response) =
       return res.status(400).json({ message: 'Price must be a valid positive number' });
     }
 
+    const numPrepTime = preparationTime !== undefined && preparationTime !== '' ? parseInt(preparationTime, 10) : null;
+
     const item = await prisma.menuItem.update({
       where: { id: String(req.params.id) },
-      data: { name: name.trim(), category, price: numPrice, imageUrl }
+      data: {
+        name: name.trim(),
+        category,
+        price: numPrice,
+        imageUrl: imageUrl || null,
+        description: description?.trim() || null,
+        preparationTime: numPrepTime,
+        isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+      }
     });
     res.json(item);
   });

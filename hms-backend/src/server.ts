@@ -43,7 +43,7 @@ app.use('/uploads', express.static(uploadDir));
 app.use('/api/license', licenseRoutes);
 
 app.use((req, res, next) => {
-  const openPaths = ['/api/auth', '/api/license', '/api/settings', '/api/health'];
+  const openPaths = ['/api/auth', '/api/license', '/api/settings', '/api/health', '/api/restaurant/menu', '/api/restaurant/categories'];
   if (openPaths.some(p => req.path.startsWith(p)) || !req.path.startsWith('/api')) {
     return next();
   }
@@ -57,34 +57,13 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/housekeeping', housekeepingRoutes);
 app.use('/api/upload', uploadRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
-app.get('/api/auth/testuser', async (req, res) => {
-  try {
-    const user = await prisma.user.findFirst({ where: { username: 'noor' } });
-    res.json({ user });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/auth/resetnow', async (req, res) => {
-  try {
-    const bcrypt = require('bcrypt');
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash('123456', salt);
-    await prisma.user.update({
-      where: { username: 'noor' },
-      data: { passwordHash }
-    });
-    res.json({ success: true, message: 'Password reset to 123456 inside backend process' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Cleaned up debug endpoints
 
 
 app.use('/api', dashboardRoutes);
@@ -133,6 +112,8 @@ app.use((req, res, next) => {
 });
 
 
+app.get('/api/test-nodemon', (req, res) => res.json({ ok: true }));
+
 // 404 Not Found Handler
 app.use('/api', (req, res, next) => {
   res.status(404).json({ message: 'Resource not found' });
@@ -148,7 +129,11 @@ async function seedDefaultCategories() {
   try {
     const count = await prisma.menuCategory.count();
     if (count === 0) {
-      const defaults = ['Starter', 'Main Course', 'Beverage', 'Dessert'];
+      const defaults = [
+        'Breakfast', 'Lunch', 'Dinner', 'Main Course',
+        'BBQ', 'Fast Food', 'Beverages', 'Tea & Coffee',
+        'Desserts', 'Others'
+      ];
       await prisma.menuCategory.createMany({
         data: defaults.map(name => ({ name }))
       });
@@ -162,4 +147,9 @@ async function seedDefaultCategories() {
 server.listen(port, async () => {
   await seedDefaultCategories();
   console.log(`Server is running on port ${port}`);
+});
+
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('GLOBAL ERROR:', err);
+  res.status(500).json({ message: err.message || 'Internal Server Error' });
 });

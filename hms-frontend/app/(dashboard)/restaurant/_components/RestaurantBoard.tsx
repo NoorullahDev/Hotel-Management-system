@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChefHat, Search, Bell, Plus, Clock, CheckCircle, Flame, Camera, Upload } from 'lucide-react';
+import { ChefHat, Search, Bell, Plus, Clock, CheckCircle, Flame } from 'lucide-react';
 import OrderCard from './OrderCard';
 import OrderDetailsSidebar from './OrderDetailsSidebar';
 import NewOrderModal from './NewOrderModal';
 import MenuManagement from './MenuManagement';
-import QRCodesModal from './QRCodesModal';
 import { io } from 'socket.io-client';
 import { api } from '@/lib/api';
 
@@ -15,10 +14,7 @@ export default function RestaurantBoard() {
   const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
-  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['restaurantOrders'],
@@ -80,35 +76,6 @@ export default function RestaurantBoard() {
     }
   };
 
-  const handleUploadMenu = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsUploading(true);
-      
-      const formData = new FormData();
-      formData.append('image', file);
-      
-      const uploadData = await api.post<any>('/api/upload', formData);
-      
-      if (uploadData.imageUrl) {
-        // Save to settings
-        await api.patch('/api/settings', {
-          category: 'general',
-          updates: { restaurantMenuImage: uploadData.imageUrl }
-        });
-        alert('Menu Image uploaded successfully! Guests will now see this image when they scan the QR code.');
-      }
-    } catch (error) {
-      console.error('Failed to upload menu', error);
-      alert('Failed to upload menu image');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
   const filteredOrders = orders.filter((o: any) => 
     o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.booking?.room?.number.includes(searchQuery) ||
@@ -145,34 +112,12 @@ export default function RestaurantBoard() {
             <Bell size={20} />
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-theme-border"></span>
           </button>
-          <div className="flex items-center gap-3">
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleUploadMenu} 
-            accept="image/*,application/pdf" 
-            className="hidden" 
-          />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm disabled:opacity-50 active:scale-95 shadow-md"
-          >
-            <Upload size={18} /> {isUploading ? 'Uploading...' : 'Upload Menu Image'}
-          </button>
-          <button 
-            onClick={() => setIsQRModalOpen(true)}
-            className="bg-theme-card shadow-soft border border-theme-border text-theme-muted-light hover:text-theme-text px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm"
-          >
-            QR Codes
-          </button>
           <button 
             onClick={() => setIsNewOrderModalOpen(true)}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm active:scale-95 shadow-md"
           >
             <Plus size={18} /> New Order
           </button>
-          </div>
         </div>
       </header>
 
@@ -315,7 +260,6 @@ export default function RestaurantBoard() {
       />
 
       {isNewOrderModalOpen && <NewOrderModal currency={currency} onClose={() => setIsNewOrderModalOpen(false)} />}
-      {isQRModalOpen && <QRCodesModal onClose={() => setIsQRModalOpen(false)} />}
     </div>
   );
 }

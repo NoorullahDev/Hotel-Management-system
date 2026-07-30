@@ -99,15 +99,16 @@ model Booking {
   arrivalTime      DateTime?
   guestCount       Int
   additionalGuests Json?
-  status           BookingStatus @default(CONFIRMED)
+  status           BookingStatus  @default(CONFIRMED)
   subtotal         Decimal
   tax              Decimal
   total            Decimal
-  createdAt        DateTime      @default(now())
-  room             Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  guest            Guest         @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  room             Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  guest            Guest          @relation(fields: [guestId], references: [id], onDelete: Cascade)
   feedback         Feedback?
   foodOrders       FoodOrder[]
+  serviceOrders    ServiceOrder[]
   invoice          Invoice?
   payments         Payment[]
 
@@ -189,12 +190,14 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id          String  @id @default(uuid())
-  name        String
-  category    String
-  price       Decimal
-  imageUrl    String?
-  isAvailable Boolean @default(true)
+  id              String  @id @default(uuid())
+  name            String
+  category        String
+  price           Decimal
+  description     String?
+  imageUrl        String?
+  isAvailable     Boolean @default(true)
+  preparationTime Int?
 }
 
 model HousekeepingTask {
@@ -219,6 +222,30 @@ model HousekeepingTask {
   @@index([createdAt])
   @@index([scheduledDate])
   @@index([status, scheduledDate])
+}
+
+model ServiceOrder {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique @default(uuid())
+  bookingId   String
+  status      String      @default("COMPLETED")
+  totalAmount Decimal     @default(0)
+  createdAt   DateTime    @default(now())
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  items       ServiceOrderItem[]
+
+  @@index([createdAt])
+  @@index([bookingId])
+}
+
+model ServiceOrderItem {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceName    String
+  category       String
+  quantity       Int
+  price          Decimal
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
 }
 
 model RoomMaintenance {
@@ -324,4 +351,16 @@ model License {
   activationDate DateTime @default(now())
   expiryDate     DateTime
   lastRenewed    DateTime @default(now())
+}
+
+model HousekeepingService {
+  id        String   @id @default(uuid())
+  category  String   // Will be set to 'Laundry', 'Pantry', etc.
+  name      String   
+  price     Decimal
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, name])
 }

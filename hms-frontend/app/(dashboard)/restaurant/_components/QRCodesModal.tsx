@@ -1,11 +1,35 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useQuery } from '@tanstack/react-query';
 import { X, Printer } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 
 export default function QRCodesModal({ onClose }: { onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const settings = useGlobalSettings();
+  const [baseUrl, setBaseUrl] = useState('');
+
+  useEffect(() => {
+    const envUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
+    if (envUrl) {
+      setBaseUrl(envUrl);
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname !== '127.0.0.1' && hostname !== 'localhost') {
+        setBaseUrl(window.location.origin);
+        return;
+      }
+      if (settings && !settings.loading && settings.localIp) {
+        setBaseUrl(`http://${settings.localIp}:${window.location.port || '4000'}`);
+      } else {
+        setBaseUrl(window.location.origin);
+      }
+    }
+  }, [settings]);
 
   const { data: rooms = [], isLoading } = useQuery({
     queryKey: ['rooms'],
@@ -77,7 +101,7 @@ export default function QRCodesModal({ onClose }: { onClose: () => void }) {
                   <div className="room text-xl font-bold text-theme-text mb-4">Room {room.number}</div>
                   <div className="bg-theme-card p-2 rounded-lg mb-3">
                     <QRCodeSVG 
-                      value={`${window.location.origin}/guest?room=${room.number}`}
+                      value={`${baseUrl}/guest?room=${room.number}`}
                       size={120}
                       level={"L"}
                       includeMargin={false}

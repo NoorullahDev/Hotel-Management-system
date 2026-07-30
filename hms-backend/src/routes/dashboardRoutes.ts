@@ -6,7 +6,13 @@ import { authenticateJWT } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-router.use(authenticateJWT);
+// Skip auth for public restaurant endpoints
+router.use((req, res, next) => {
+  if (req.path === '/restaurant/menu' || req.path === '/restaurant/categories') {
+    return next('router');
+  }
+  return authenticateJWT(req, res, next);
+});
 
 router.get('/dashboard/summary', getSummary);
 router.get('/bookings', getBookings);

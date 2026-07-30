@@ -162,3 +162,99 @@ export const createHousekeepingStaff = asyncHandler(async (req: Request, res: Re
 
   res.status(201).json({ message: 'Housekeeping staff created successfully', id: newStaff.staff.id, temporaryPassword: newStaff.temporaryPassword });
 });
+
+// --- Services CRUD ---
+
+export const getServices = asyncHandler(async (req: Request, res: Response) => {
+  const { category } = req.query;
+  const where: any = {};
+  if (category) {
+    where.category = String(category);
+  }
+  const services = await prisma.housekeepingService.findMany({
+    where,
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(services);
+});
+
+export const createService = asyncHandler(async (req: Request, res: Response) => {
+  const { category, name, price, isActive } = req.body;
+  if (!category || !name || price === undefined) {
+    return res.status(400).json({ message: 'Category, name, and price are required' });
+  }
+  const service = await prisma.housekeepingService.create({
+    data: {
+      category,
+      name,
+      price,
+      isActive: isActive !== undefined ? isActive : true
+    }
+  });
+  res.json(service);
+});
+
+export const updateService = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, price, isActive } = req.body;
+  const service = await prisma.housekeepingService.update({
+    where: { id: String(id) },
+    data: { name, price, isActive }
+  });
+  res.json(service);
+});
+
+export const deleteService = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  await prisma.housekeepingService.delete({
+    where: { id: String(id) }
+  });
+  res.json({ message: 'Service deleted successfully' });
+});
+
+// --- Service Orders (Billing) ---
+
+export const createServiceOrder = asyncHandler(async (req: Request, res: Response) => {
+  const { bookingId, items } = req.body;
+  if (!bookingId || !items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'bookingId and items are required' });
+  }
+
+  // Calculate total amount
+  let calculatedTotal = 0;
+  for (const item of items) {
+    calculatedTotal += (Number(item.price) * Number(item.quantity));
+  }
+
+  const serviceOrder = await prisma.serviceOrder.create({
+    data: {
+      bookingId: String(bookingId),
+      totalAmount: calculatedTotal,
+      items: {
+        create: items.map((item: any) => ({
+          serviceName: item.serviceName,
+          category: item.category,
+          quantity: Number(item.quantity),
+          price: Number(item.price)
+        }))
+      }
+    },
+    include: { items: true }
+  });
+
+  res.status(201).json(serviceOrder);
+});
+
+export const getServiceOrders = asyncHandler(async (req: Request, res: Response) => {
+  const { bookingId } = req.query;
+  const where: any = {};
+  if (bookingId) {
+    where.bookingId = String(bookingId);
+  }
+  const orders = await prisma.serviceOrder.findMany({
+    where,
+    include: { items: true },
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(orders);
+});

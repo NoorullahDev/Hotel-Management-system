@@ -260,7 +260,11 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     drawSolidLine(doc);
 
     receiptItems.forEach(item => {
-      leftRight(doc, item.description, `${currencySymbol} ${item.amount.toFixed(2)}`, 7, false);
+      let displayDesc = item.description || '';
+      displayDesc = displayDesc.replace(/^Housekeeping\s*\((.*?)\)\s*—\s*/i, '$1 — ');
+      displayDesc = displayDesc.replace(/^Housekeeping\s*>\s*/i, '');
+      displayDesc = displayDesc.replace(/^Housekeeping\s*—\s*/i, '');
+      leftRight(doc, displayDesc, `${currencySymbol} ${item.amount.toFixed(2)}`, 7, false);
       doc.moveDown(0.1);
     });
     

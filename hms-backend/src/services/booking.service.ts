@@ -135,12 +135,15 @@ export const checkInBookingService = async (bookingId: string, roomId: string) =
 export const checkOutBookingServiceTx = async (tx: any, bookingId: string, roomId: string) => {
   const updatedBooking = await tx.booking.update({
     where: { id: bookingId },
-    data: { status: 'CHECKED_OUT' },
+    data: { 
+      status: 'CHECKED_OUT',
+      checkOut: new Date()
+    },
     include: { guest: true, room: true }
   });
   await tx.room.update({
     where: { id: roomId },
-    data: { status: 'CLEANING' }
+    data: { status: 'AVAILABLE' }
   });
   await tx.housekeepingTask.create({
     data: {
@@ -157,7 +160,7 @@ export const checkOutBookingService = async (bookingId: string, roomId: string) 
   });
 
   emitToHotel('main', 'booking:checked_out', { bookingId });
-  emitToHotel('main', 'room:status_changed', { roomId, newStatus: 'CLEANING' });
+  emitToHotel('main', 'room:status_changed', { roomId, newStatus: 'AVAILABLE' });
 
   const settings = await getPublicSettingsData();
   const currencySymbol = settings.currencySymbol;

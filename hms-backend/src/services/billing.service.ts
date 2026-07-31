@@ -172,7 +172,7 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
 
   if (result.checkedOut && result.updatedBooking) {
     emitToHotel('main', 'booking:checked_out', { bookingId });
-    emitToHotel('main', 'room:status_changed', { roomId: result.updatedBooking.roomId, newStatus: 'CLEANING' });
+    emitToHotel('main', 'room:status_changed', { roomId: result.updatedBooking.roomId, newStatus: 'AVAILABLE' });
 
     const settings = await getPublicSettingsData();
     const currencySymbol = settings.currencySymbol;

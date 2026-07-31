@@ -197,9 +197,14 @@ export const createService = asyncHandler(async (req: Request, res: Response) =>
 export const updateService = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name, price, isActive } = req.body;
+  // Build partial update — only include fields that were actually sent in the request
+  const data: any = {};
+  if (name !== undefined) data.name = name;
+  if (price !== undefined) data.price = price;
+  if (isActive !== undefined) data.isActive = isActive;
   const service = await prisma.housekeepingService.update({
     where: { id: String(id) },
-    data: { name, price, isActive }
+    data
   });
   res.json(service);
 });
@@ -218,6 +223,15 @@ export const createServiceOrder = asyncHandler(async (req: Request, res: Respons
   const { bookingId, items } = req.body;
   if (!bookingId || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: 'bookingId and items are required' });
+  }
+
+  // Validate booking exists and is currently checked in
+  const booking = await prisma.booking.findUnique({ where: { id: String(bookingId) } });
+  if (!booking) {
+    return res.status(404).json({ message: 'Booking not found' });
+  }
+  if (booking.status !== 'CHECKED_IN') {
+    return res.status(400).json({ message: `Cannot add services to a booking with status: ${booking.status}. Room must be currently checked in.` });
   }
 
   // Calculate total amount
@@ -257,4 +271,45 @@ export const getServiceOrders = asyncHandler(async (req: Request, res: Response)
     orderBy: { createdAt: 'desc' }
   });
   res.json(orders);
+});
+
+export const getOccupiedRooms = asyncHandler(async (req: Request, res: Response) => {
+  const bookings = await prisma.booking.findMany({
+    where: { status: 'CHECKED_IN' },
+    include: {
+      room: { include: { roomType: true } },
+      guest: true,
+    },
+    orderBy: { checkIn: 'asc' },
+  });
+
+  const result = bookings.map((b) => ({
+    bookingId: b.id,
+    roomNumber: b.room.number,
+    roomType: b.room.roomType.name,
+    guestName: b.guest.name,
+    guestPhone: b.guest.phone || '',
+    checkIn: b.checkIn,
+    checkOut: b.checkOut,
+  }));
+
+  res.json(result);
+});
+
+export const updateStaffStatus = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const staff = await prisma.staff.update({
+    where: { id: String(id) },
+    data: { status }
+  });
+  res.json(staff);
+});
+
+export const deleteStaff = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  await prisma.staff.delete({
+    where: { id: String(id) }
+  });
+  res.json({ message: 'Staff deleted successfully' });
 });

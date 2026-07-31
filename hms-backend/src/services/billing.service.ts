@@ -49,7 +49,7 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
       const itemTotal = itemPrice.mul(qty);
       totalServiceCharges = totalServiceCharges.plus(itemTotal);
       invoiceItems.push({ 
-        description: `Housekeeping (${item.category}) — ${item.serviceName}`, 
+        description: `${item.category} — ${item.serviceName}`, 
         qty,
         rate: itemPrice,
         amount: itemTotal 

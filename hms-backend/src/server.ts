@@ -57,7 +57,6 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/invoices', invoiceRoutes);
-app.use('/api/housekeeping', housekeepingRoutes);
 app.use('/api/upload', uploadRoutes);
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
@@ -144,8 +143,47 @@ async function seedDefaultCategories() {
   }
 }
 
+async function seedDefaultRolePermissions() {
+  try {
+    // Ensure the Housekeeping role always has manage_housekeeping permission.
+    // This is additive-only — any permissions already set by the Admin are preserved.
+    const roleDefaults: Record<string, string[]> = {
+      'Housekeeping': ['manage_housekeeping'],
+      'Manager': [
+        'view_dashboard', 'manage_bookings', 'view_bookings', 'manage_rooms',
+        'view_rooms', 'manage_guests', 'manage_billing', 'manage_restaurant',
+        'manage_housekeeping', 'manage_staff', 'view_reports'
+      ],
+      'Receptionist': [
+        'view_dashboard', 'manage_bookings', 'view_bookings', 'manage_rooms',
+        'view_rooms', 'manage_guests', 'manage_billing'
+      ],
+      'Restaurant': ['manage_restaurant'],
+    };
+
+    for (const [roleName, defaultPerms] of Object.entries(roleDefaults)) {
+      const role = await prisma.role.findUnique({ where: { name: roleName } });
+      if (!role) continue;
+
+      const existingPerms: string[] = Array.isArray(role.permissions) ? role.permissions as string[] : [];
+      const merged = Array.from(new Set([...existingPerms, ...defaultPerms]));
+
+      if (merged.length !== existingPerms.length) {
+        await prisma.role.update({
+          where: { name: roleName },
+          data: { permissions: merged }
+        });
+        console.log(`[Seed] Updated permissions for role "${roleName}": added ${merged.length - existingPerms.length} permission(s).`);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to seed role permissions:', err);
+  }
+}
+
 server.listen(port, async () => {
   await seedDefaultCategories();
+  await seedDefaultRolePermissions();
   console.log(`Server is running on port ${port}`);
 });
 

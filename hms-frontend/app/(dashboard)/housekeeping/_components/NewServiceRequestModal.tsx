@@ -11,20 +11,17 @@ export default function NewServiceRequestModal({ onClose }: { onClose: () => voi
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [serviceSearch, setServiceSearch] = useState('');
 
-  // Fetch occupied bookings
-  const { data: occupiedBookings = [] } = useQuery({
-    queryKey: ['occupiedBookings'],
+  // Fetch only CHECKED_IN (physically occupied) rooms via the housekeeping-scoped endpoint.
+  // This avoids the view_bookings permission dependency — manage_housekeeping is enough.
+  const { data: occupiedRooms = [] } = useQuery({
+    queryKey: ['occupiedRooms'],
     queryFn: async () => {
       try {
-        const json = await api.get<any>('/api/bookings?limit=500');
-        const data: any[] = json.data || [];
-        // Support both CHECKED_IN and CONFIRMED (Occupied) as requested
-        return data.filter((b: any) => 
-          (b.status === 'CHECKED_IN' || b.status === 'CONFIRMED') && b.room && b.guest
-        );
+        return await api.get<any[]>('/api/housekeeping/rooms/occupied');
       } catch {
         return [];
       }
@@ -103,7 +100,7 @@ export default function NewServiceRequestModal({ onClose }: { onClose: () => voi
         items: orderItems
       });
       queryClient.invalidateQueries({ queryKey: ['serviceOrders'] });
-      onClose();
+      setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Failed to submit service request');
     }
@@ -114,6 +111,35 @@ export default function NewServiceRequestModal({ onClose }: { onClose: () => voi
     const rawId = e.target.value;
     setSelectedBookingId(rawId);
   };
+
+  // Success screen
+  if (success) {
+    const selectedRoom = occupiedRooms.find((r: any) => r.bookingId === selectedBookingId);
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-theme-bg w-full max-w-md rounded-2xl shadow-xl border border-theme-border p-8 flex flex-col items-center gap-4 text-center">
+          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center">
+            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-theme-text">Request Submitted!</h2>
+          {selectedRoom && (
+            <p className="text-theme-muted text-sm">
+              Service request for <span className="font-semibold text-theme-text">Room {selectedRoom.roomNumber}</span> ({selectedRoom.guestName}) has been recorded successfully.
+            </p>
+          )}
+          <p className="text-xs text-theme-muted">{orderItems.length} service{orderItems.length !== 1 ? 's' : ''} • Total: {totalAmount.toLocaleString()}</p>
+          <button
+            onClick={onClose}
+            className="mt-2 w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-xl font-bold transition-all"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -202,14 +228,14 @@ export default function NewServiceRequestModal({ onClose }: { onClose: () => voi
                   className="w-full bg-theme-bg border border-theme-border rounded-xl px-4 py-2.5 text-theme-text outline-none focus:border-primary appearance-none"
                 >
                   <option value="">-- Select Room --</option>
-                  {occupiedBookings.map((booking: any) => (
-                    <option key={booking.rawId} value={booking.rawId}>
-                      {booking.room} - {booking.guest}
+                  {occupiedRooms.map((room: any) => (
+                    <option key={room.bookingId} value={room.bookingId}>
+                      Room {room.roomNumber} — {room.guestName}
                     </option>
                   ))}
                 </select>
-                {occupiedBookings.length === 0 && (
-                  <p className="text-xs text-red-500 mt-2">No occupied rooms currently found.</p>
+                {occupiedRooms.length === 0 && (
+                  <p className="text-xs text-theme-muted mt-2">No checked-in rooms currently.</p>
                 )}
               </div>
 

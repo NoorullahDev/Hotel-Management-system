@@ -171,7 +171,18 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
       });
       for (const order of foodOrders) {
         for (const item of order.items) {
-          receiptItems.push({ description: `Restaurant (${item.itemName} x${item.quantity})`, amount: item.quantity * getNumber(item.price) });
+          receiptItems.push({ description: `Restaurant — ${item.itemName}`, amount: item.quantity * getNumber(item.price) });
+        }
+      }
+
+      // Include housekeeping service orders
+      const serviceOrders = await prisma.serviceOrder.findMany({
+        where: { bookingId: booking.id },
+        include: { items: true }
+      });
+      for (const order of serviceOrders) {
+        for (const item of order.items) {
+          receiptItems.push({ description: `${item.category} — ${item.serviceName}`, amount: Number(item.quantity) * getNumber(item.price) });
         }
       }
 

@@ -23,9 +23,9 @@ export default function AddStaffModal({ onClose, onStaffAdded }: { onClose: () =
     try {
       await api.post('/api/housekeeping/staff', formData);
       onStaffAdded();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert('Failed to add staff member. Check if email already exists.');
+      alert(error?.message || 'Failed to add staff member. Check if email already exists.');
     } finally {
       setLoading(false);
     }

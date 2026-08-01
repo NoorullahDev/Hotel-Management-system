@@ -165,7 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="flex min-h-screen bg-theme-main text-theme-text font-sans">
+    <div className="flex h-screen overflow-hidden bg-theme-main text-theme-text font-sans md:pl-64">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -178,12 +178,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-theme-card shadow-soft border-r border-theme-border flex flex-col transition-transform duration-300 ease-in-out
-        md:relative md:translate-x-0
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         
         {/* Logo Area */}
-        <div className="h-20 md:h-24 flex items-center justify-between px-6 border-b border-theme-border">
+        <div className="shrink-0 h-20 md:h-24 flex items-center justify-between px-6 border-b border-theme-border">
           <div className="flex items-center gap-4 text-primary">
             {hotelLogo ? (
               <img loading="lazy" decoding="async" src={hotelLogo.startsWith('http') || hotelLogo.startsWith('/images/') ? hotelLogo : `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}${hotelLogo}`} alt="Hotel Logo" className="h-10 w-auto object-contain rounded-xl shadow-sm" />
@@ -225,7 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Bottom Actions & Widget */}
-        <div className="p-4 border-t border-theme-border flex flex-col gap-4">
+        <div className="shrink-0 p-4 border-t border-theme-border flex flex-col gap-4">
           <button 
             onClick={() => setShowLogoutModal(true)}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors w-full"
@@ -251,10 +250,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden w-full">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden w-full">
         
         {/* Top Bar */}
-        <header className="h-20 bg-theme-main flex items-center justify-between px-4 md:px-8 z-10">
+        <header className="shrink-0 h-20 bg-theme-main flex items-center justify-between px-4 md:px-8 z-10">
           <div className="flex-1 flex items-center gap-4">
             <button 
               className="md:hidden p-2 text-theme-muted hover:text-theme-text transition-colors"

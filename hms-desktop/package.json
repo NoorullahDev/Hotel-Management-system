@@ -12,7 +12,9 @@
   "license": "ISC",
   "devDependencies": {
     "electron": "^35.0.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3"
   },
   "dependencies": {
     "wait-on": "^8.0.3"
@@ -20,13 +22,15 @@
   "build": {
     "appId": "com.hotel.management",
     "productName": "Hotel Management System",
+    "asar": false,
     "directories": {
       "output": "dist"
     },
     "files": [
       "main.js",
       "preload.js",
-      "icon.png"
+      "icon.png",
+      "icon.ico"
     ],
     "extraResources": [
       {
@@ -56,12 +60,11 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "icon.png"
+      "icon": "icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "icon.png"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

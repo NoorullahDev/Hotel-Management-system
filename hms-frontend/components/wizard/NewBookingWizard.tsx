@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Check, Users, BedDouble, ChevronRight } from 'lucide-react';
+import Image from 'next/image';
 import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 import { api } from '@/lib/api';
 
@@ -14,7 +15,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const [step, setStep] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { taxRate, taxName, currencySymbol, currency } = useGlobalSettings();
+  const { taxRate, currencySymbol, currency } = useGlobalSettings();
 
   // Form states
   const [guestDetails, setGuestDetails] = useState({
@@ -31,25 +32,24 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const [additionalGuests, setAdditionalGuests] = useState<{name: string, relationship: string, phone: string, idNumber: string}[]>([]);
 
   const [guestSearch, setGuestSearch] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [guestResults, setGuestResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (guestSearch.length > 2) {
-        setIsSearching(true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         api.get<any>(`/api/guests?search=${guestSearch}&limit=5&guestType=${bookingType}`)
         .then(d => { setGuestResults(d.data || []); setShowDropdown(true); })
-        .catch(() => setGuestResults([]))
-        .finally(() => setIsSearching(false));
+        .catch(() => setGuestResults([]));
       } else {
         setGuestResults([]);
         setShowDropdown(false);
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [guestSearch]);
+  }, [guestSearch, bookingType]);
 
   const [stayDetails, setStayDetails] = useState({
     checkIn: new Date().toISOString().split('T')[0],
@@ -82,7 +82,9 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
@@ -94,20 +96,24 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     cardholder: 'John Smith'
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [bookingResult, setBookingResult] = useState<any>(null);
 
   useEffect(() => {
     // Fetch room types
     const fetchTypes = async () => {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const res = await api.get<any>('/api/rooms/types');
         setRoomTypes(res);
-      } catch (err) {}
+      } catch {
+        // Handle error silently or log
+      }
     };
     fetchTypes();
   }, []);
 
-  const fetchAvailableRooms = async () => {
+  const fetchAvailableRooms = React.useCallback(async () => {
     try {
       const params = new URLSearchParams({
         checkIn: stayDetails.checkIn,
@@ -115,16 +121,19 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
       });
       if (stayDetails.roomType) params.append('roomType', stayDetails.roomType);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await api.get<any>(`/api/rooms/availability?${params.toString()}`);
       setAvailableRooms(res);
-    } catch (err) {}
-  };
+    } catch {
+      // Ignore
+    }
+  }, [stayDetails.checkIn, stayDetails.checkOut, stayDetails.roomType]);
 
   useEffect(() => {
     if (step === 3 || step === 2) {
       fetchAvailableRooms();
     }
-  }, [stayDetails.checkIn, stayDetails.checkOut, stayDetails.roomType, step]);
+  }, [fetchAvailableRooms, step]);
 
   const selectedRoom = availableRooms.find(r => r.id === selectedRoomId);
   
@@ -166,9 +175,11 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         paymentMethod: paymentDetails.method
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = await api.post<any>('/api/bookings', payload);
       setBookingResult(data);
       setStep(6); // Success step
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       if (err.status === 409) {
         setErrorMsg(err.message || 'Room just booked by someone else!');
@@ -474,8 +485,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                         onClick={() => setSelectedRoomId(room.id)}
                         className={`flex gap-4 p-3 rounded-xl border cursor-pointer transition-colors ${selectedRoomId === room.id ? 'border-primary bg-primary/10 shadow-sm' : 'border-theme-border bg-theme-main hover:border-theme-strong'}`}
                       >
-                        <div className="w-24 h-20 rounded-lg overflow-hidden bg-theme-secondary flex-shrink-0">
-                          <img loading="lazy" decoding="async" src={room.imageUrl || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=200&auto=format&fit=crop"} alt="Room" className="w-full h-full object-cover" />
+                        <div className="w-24 h-20 rounded-lg overflow-hidden bg-theme-secondary flex-shrink-0 relative">
+                          <Image fill src={room.imageUrl || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=200&auto=format&fit=crop"} alt="Room" className="object-cover" />
                         </div>
                         <div className="flex-1 flex flex-col justify-between">
                           <div className="flex justify-between items-start">

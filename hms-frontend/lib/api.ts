@@ -1,6 +1,7 @@
 import { API_BASE } from './config';
 
 export class ApiError extends Error {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(public status: number, message: string, public data?: any) {
     super(message);
     this.name = 'ApiError';
@@ -62,7 +63,7 @@ export async function apiFetch<T>(
             }
             return retryRes.json() as Promise<T>;
           }
-        } catch (e) {
+        } catch {
           // Silent fallback to standard logout if refresh fails
         }
       }

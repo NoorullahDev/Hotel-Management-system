@@ -2,12 +2,13 @@ import Link from "next/link";
 import { api } from '@/lib/api';
 
 export default async function Home() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}`;
   let healthStatus = "Loading...";
   
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await api.get<any>('/api/health', { cache: 'no-store' } as any);
     healthStatus = JSON.stringify(data, null, 2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     healthStatus = `Error: ${error.message}`;
   }

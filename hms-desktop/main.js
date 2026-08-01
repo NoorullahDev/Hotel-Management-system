@@ -83,6 +83,7 @@ function startBackend() {
         JWT_REFRESH_SECRET: refreshSecret
       },
       shell: true,
+      windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
     });
 

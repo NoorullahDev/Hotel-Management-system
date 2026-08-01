@@ -5,6 +5,7 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
 import { getTaxSettings } from '../utils/settings';
+import { formatServiceDescription } from '../services/billing.service';
 
 // 80mm thermal receipt: ~226 points width
 const RECEIPT_WIDTH = 226;
@@ -182,7 +183,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
       });
       for (const order of serviceOrders) {
         for (const item of order.items) {
-          receiptItems.push({ description: `${item.category} — ${item.serviceName}`, amount: Number(item.quantity) * getNumber(item.price) });
+          receiptItems.push({ description: formatServiceDescription(item.category, item.serviceName), amount: Number(item.quantity) * getNumber(item.price) });
         }
       }
 
@@ -260,11 +261,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     drawSolidLine(doc);
 
     receiptItems.forEach(item => {
-      let displayDesc = item.description || '';
-      displayDesc = displayDesc.replace(/^Housekeeping\s*\((.*?)\)\s*—\s*/i, '$1 — ');
-      displayDesc = displayDesc.replace(/^Housekeeping\s*>\s*/i, '');
-      displayDesc = displayDesc.replace(/^Housekeeping\s*—\s*/i, '');
-      leftRight(doc, displayDesc, `${currencySymbol} ${item.amount.toFixed(2)}`, 7, false);
+      leftRight(doc, item.description || '', `${currencySymbol} ${item.amount.toFixed(2)}`, 7, false);
       doc.moveDown(0.1);
     });
     

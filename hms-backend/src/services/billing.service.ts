@@ -7,6 +7,14 @@ import { notifyRoles } from './notificationService';
 import { Prisma } from '@prisma/client';
 const { Decimal } = Prisma;
 
+export const formatServiceDescription = (category: string, serviceName: string) => {
+  let desc = `${category} — ${serviceName}`;
+  desc = desc.replace(/^Housekeeping\s*\((.*?)\)\s*—\s*/i, '$1 — ');
+  desc = desc.replace(/^Housekeeping\s*>\s*/i, '');
+  desc = desc.replace(/^Housekeeping\s*—\s*/i, '');
+  return desc;
+};
+
 export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: string, taxPct: number) => {
   const checkInDate = new Date(booking.checkIn);
   const checkOutDate = new Date(booking.checkOut);
@@ -49,7 +57,7 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
       const itemTotal = itemPrice.mul(qty);
       totalServiceCharges = totalServiceCharges.plus(itemTotal);
       invoiceItems.push({ 
-        description: `${item.category} — ${item.serviceName}`, 
+        description: formatServiceDescription(item.category, item.serviceName), 
         qty,
         rate: itemPrice,
         amount: itemTotal 

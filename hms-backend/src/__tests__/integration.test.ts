@@ -143,7 +143,7 @@ describe('Full System Integration Test', () => {
     const roomCharge = invoiceItems.find(i => i.description.includes('Room Charges'));
     expect(roomCharge?.amount.toNumber()).toBe(10000);
 
-    const foodCharge = invoiceItems.find(i => i.description.includes('Restaurant (Club Sandwich x2)'));
+    const foodCharge = invoiceItems.find(i => i.description.includes('Restaurant — Club Sandwich'));
     expect(foodCharge?.amount.toNumber()).toBe(1000);
 
     const taxCharge = invoiceItems.find(i => i.description.includes('VAT (20%)'));

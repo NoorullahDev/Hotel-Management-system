@@ -1,11 +1,13 @@
 node_modules
 # Keep environment variables out of version control
 .env
+.env.local
 
 /generated/prisma
 
 *.db
 !prisma/dev.db
+prisma/dev.local.db
 *.db.bak
 uploads/*
 

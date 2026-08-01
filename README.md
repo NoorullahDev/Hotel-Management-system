@@ -53,6 +53,11 @@ npm start
 
 *(Note: Ensure your database environment variables are correctly configured in `hms-backend/.env` before starting the server.)*
 
+### 🛠️ Local Development & Debugging Database
+
+For local development and debugging with scratch scripts, use `dev.local.db`. You can configure this by overriding your `DATABASE_URL` (see `hms-backend/.env.local.example`). You can seed it the same way via `npx prisma db seed` with the `DATABASE_URL` overridden.
+**Important:** `prisma/dev.db` is the shipped starter database. It should only ever be regenerated from `seed.ts` when intentionally updating the shipped starter data, and never hand-edited or used for local debugging.
+
 > [!IMPORTANT]
 > **Default Admin Credentials**
 > If you have seeded the database (`npx prisma db seed`), the default admin user is created with:

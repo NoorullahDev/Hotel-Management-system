@@ -89,26 +89,83 @@
   }
 }
 
-/* ── Print: hide sidebar, topbar, buttons — only report content ── */
+/* ── Print: safe and targeted PDF layout fixes ── */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  /* Hide navigation and UI controls */
   aside,
-  header {
+  header,
+  .print-hide,
+  button,
+  .custom-scrollbar::-webkit-scrollbar {
     display: none !important;
   }
-  .print-hide {
-    display: none !important;
+
+  /* Base color resets for printing */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  main {
+
+  /* Safely target ONLY the layout wrappers to prevent clipping, 
+     WITHOUT overriding global classes like .overflow-hidden which break Recharts SVGs */
+  .flex.h-screen.overflow-hidden,
+  main.flex-1.flex-col,
+  div.overflow-y-auto.p-8 {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: static !important;
+  }
+
+  /* Ensure the sidebar padding is removed */
+  .md\:pl-64 {
+    padding-left: 0 !important;
+  }
+
+  /* Prevent page breaks inside cards */
+  .bg-theme-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    background-color: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Tables: Avoid breaks inside rows, ensure headers repeat */
+  table {
+    page-break-inside: auto !important;
     width: 100% !important;
-    overflow: visible !important;
   }
-  main > div {
-    padding: 8px !important;
-    overflow: visible !important;
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
-  body,
-  html {
-    background: #fff !important;
-    color: #111 !important;
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Ensure text colors are clearly visible on white paper */
+  .text-theme-text {
+    color: #111827 !important;
+  }
+  .text-theme-muted {
+    color: #4b5563 !important;
+  }
+  .text-theme-muted-light {
+    color: #6b7280 !important;
   }
 }

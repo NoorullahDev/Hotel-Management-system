@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Building2, Upload, CheckCircle, Loader2, Moon, Sun } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { Building2, Upload, CheckCircle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface Props {
@@ -15,8 +14,6 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave,
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
-  
-  const { theme, setTheme } = useTheme();
 
   const get = (key: string, def = '') => settings?.general?.[key] || def;
 
@@ -84,48 +81,6 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave,
 
   return (
     <div className="space-y-8">
-      {/* Theme Card */}
-      <div className="bg-theme-secondary border border-theme-border rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
-            <Moon size={20} className="text-indigo-500" />
-          </div>
-          <div>
-            <h3 className="text-theme-text font-semibold">Appearance</h3>
-            <p className="text-sm text-theme-muted">Customize the look and feel of your dashboard</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Light Theme Button */}
-          <button 
-            onClick={() => setTheme('light')}
-            className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${theme === 'light' ? 'border-blue-500 bg-blue-500/5' : 'border-theme-border bg-theme-main hover:border-theme-strong'}`}
-          >
-            <div className={`p-3 rounded-full ${theme === 'light' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-theme-muted-light'}`}>
-              <Sun size={20} />
-            </div>
-            <div className="text-left">
-              <div className="font-medium text-theme-text">Light Theme</div>
-              <div className="text-sm text-theme-muted">Clean and bright interface</div>
-            </div>
-          </button>
-
-          {/* Dark Theme Button */}
-          <button 
-            onClick={() => setTheme('dark')}
-            className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${theme === 'dark' ? 'border-blue-500 bg-blue-500/5' : 'border-theme-border bg-theme-main hover:border-theme-strong'}`}
-          >
-            <div className={`p-3 rounded-full ${theme === 'dark' ? 'bg-blue-500 text-white' : 'bg-theme-card text-theme-muted border border-theme-border'}`}>
-              <Moon size={20} />
-            </div>
-            <div className="text-left">
-              <div className="font-medium text-theme-text">Dark Theme</div>
-              <div className="text-sm text-theme-muted">Easy on the eyes (Default)</div>
-            </div>
-          </button>
-        </div>
-      </div>
 
       {/* Header Card */}
       <div className="bg-theme-secondary border border-theme-border rounded-2xl p-6">

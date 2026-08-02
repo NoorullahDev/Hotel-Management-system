@@ -355,19 +355,9 @@ export default function ReportsPage() {
   const maxTasks = Math.max(...staffPerf.map(s => s.tasksCompleted), 1);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Print-only Hotel Header — visible only when printing */}
-      <div className="hidden print:block text-center mb-6 border-b border-theme-border pb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-theme-text">{hotelName}</h1>
-          <p className="text-sm text-theme-muted mt-1">{hotelAddress}</p>
-        </div>
-        {(contactNumber || email) && (
-          <p className="text-sm text-theme-muted">
-            {[contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | ')}
-          </p>
-        )}
-      </div>
+    <>
+      {/* ── INTERACTIVE DASHBOARD (HIDDEN ON PRINT) ── */}
+      <div className="print:hidden flex flex-col gap-6">
       {/* ── Full Report Modal ────────────────────────────────────────────── */}
       {fullModal && (
         <FullReportModal
@@ -716,7 +706,167 @@ export default function ReportsPage() {
                 </Line>
               </LineChart>
             </ResponsiveContainer>
+      </div>
+
+      {/* ── PRINT-ONLY INFORMATIVE REPORT ── */}
+      <div className="hidden print:block w-full text-black">
+        {/* Cover / Header */}
+        <div className="text-center mb-8 border-b-2 border-gray-300 pb-6">
+          <h1 className="text-3xl font-bold mb-2 text-black">{hotelName}</h1>
+          <p className="text-gray-600">{hotelAddress}</p>
+          {(contactNumber || email) && (
+            <p className="text-gray-600 mt-1">
+              {[contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | ')}
+            </p>
+          )}
+          <h2 className="text-xl font-semibold mt-6 text-gray-800">Comprehensive Performance Report</h2>
+          <p className="text-sm text-gray-500">Period: {range.start} to {range.end}</p>
+        </div>
+
+        {/* Executive Summary */}
+        <div className="mb-8" style={{ pageBreakInside: 'avoid' }}>
+          <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">Executive Summary</h3>
+          <div className="grid grid-cols-3 gap-6">
+            <div className="p-4 border border-gray-300 rounded-lg">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Revenue</div>
+              <div className="text-2xl font-bold text-black mt-1">{summary ? formatCurrency(summary.totalRevenue, currencySymbol) : "PKR 0.00"}</div>
+            </div>
+            <div className="p-4 border border-gray-300 rounded-lg">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Occupancy Rate</div>
+              <div className="text-2xl font-bold text-black mt-1">{summary ? `${summary.occupancyRate}%` : "0%"}</div>
+            </div>
+            <div className="p-4 border border-gray-300 rounded-lg">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Bookings</div>
+              <div className="text-2xl font-bold text-black mt-1">{summary?.totalBookings ?? 0}</div>
+            </div>
+            <div className="p-4 border border-gray-300 rounded-lg">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Avg Length of Stay</div>
+              <div className="text-2xl font-bold text-black mt-1">{summary ? `${summary.avgLOS} Nights` : "0 Nights"}</div>
+            </div>
+            <div className="p-4 border border-gray-300 rounded-lg">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">Guest Satisfaction</div>
+              <div className="text-2xl font-bold text-black mt-1">{summary ? `${summary.guestSatisfaction} / 5` : "4.5 / 5"}</div>
+            </div>
           </div>
-    </div>
+        </div>
+
+        {/* Detailed Revenue Table */}
+        <div className="mb-8" style={{ pageBreakBefore: 'always' }}>
+          <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">Detailed Revenue Report</h3>
+          <table className="w-full text-sm text-left border-collapse border border-gray-300">
+            <thead className="bg-gray-100 border-b-2 border-gray-400">
+              <tr>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Date</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Rooms Revenue</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Restaurant Revenue</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Other Revenue</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(revTable?.rows || []).map((r: any, i: number) => (
+                <tr key={i} className="border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.date}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.roomsRevenue, currencySymbol)}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.restaurantRevenue, currencySymbol)}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.otherRevenue, currencySymbol)}</td>
+                  <td className="py-2 px-4 font-bold border border-gray-300 text-black">{formatCurrency(r.total, currencySymbol)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {revTable?.totals && (
+              <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
+                <tr>
+                  <td className="py-3 px-4 border border-gray-300 text-black">Total</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{formatCurrency(revTable.totals.roomsRevenue, currencySymbol)}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{formatCurrency(revTable.totals.restaurantRevenue, currencySymbol)}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{formatCurrency(revTable.totals.otherRevenue, currencySymbol)}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{formatCurrency(revTable.totals.total, currencySymbol)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Occupancy Data */}
+        <div className="mb-8" style={{ pageBreakBefore: 'always' }}>
+          <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">Occupancy Report</h3>
+          <table className="w-full text-sm text-left border-collapse border border-gray-300">
+            <thead className="bg-gray-100 border-b-2 border-gray-400">
+              <tr>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Date</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Occupied</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Available</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Reserved</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Occupancy %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(occupancy?.table || []).map((r: any, i: number) => (
+                <tr key={i} className="border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.date}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.occupied}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.available}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.reserved}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.occupancyPct}%</td>
+                </tr>
+              ))}
+            </tbody>
+            {occTotalRow && (
+              <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
+                <tr>
+                  <td className="py-3 px-4 border border-gray-300 text-black">Total / Avg</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(occTotalRow[1])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(occTotalRow[2])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(occTotalRow[3])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{occupancy?.occupancyRate}%</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* Restaurant Data */}
+        <div className="mb-8" style={{ pageBreakBefore: 'always' }}>
+          <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">Restaurant Report</h3>
+          <table className="w-full text-sm text-left border-collapse border border-gray-300">
+            <thead className="bg-gray-100 border-b-2 border-gray-400">
+              <tr>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Item / Period</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Total Orders</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Total Sales</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Food Sales</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Beverage Sales</th>
+                <th className="py-3 px-4 font-bold text-black border border-gray-300">Avg Order Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {restaurant.map((r: any, i: number) => (
+                <tr key={i} className="border-b border-gray-200" style={{ pageBreakInside: 'avoid' }}>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.name}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{r.orders}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.revenue, currencySymbol)}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.foodSales, currencySymbol)}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.beverageSales, currencySymbol)}</td>
+                  <td className="py-2 px-4 border border-gray-300 text-black">{formatCurrency(r.avgOrder, currencySymbol)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {restTotalRow && (
+              <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
+                <tr>
+                  <td className="py-3 px-4 border border-gray-300 text-black">Total</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(restTotalRow[1])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(restTotalRow[2])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(restTotalRow[3])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(restTotalRow[4])}</td>
+                  <td className="py-3 px-4 border border-gray-300 text-black">{String(restTotalRow[5])}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </>
   );
 }

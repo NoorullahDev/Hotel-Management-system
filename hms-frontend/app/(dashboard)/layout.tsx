@@ -6,13 +6,14 @@ import {
   LayoutDashboard, BedDouble, CalendarCheck, LogIn, LogOut, 
   Receipt, UtensilsCrossed, Sparkles, Users, FileBarChart, 
   LineChart, Settings, Power, Bell, ChevronDown, User,
-  MapPin, Building2, Search, Crown, Menu, X
+  MapPin, Building2, Search, Crown, Menu, X, Sun, Moon
 } from 'lucide-react';
 import Link from 'next/link';
 import { connectSocket } from '../../lib/socket';
 import { Outfit } from 'next/font/google';
 import { API_BASE } from '../../lib/config';
 import { api } from '@/lib/api';
+import { useTheme } from 'next-themes';
 
 const outfit = Outfit({ subsets: ['latin'] });
 
@@ -43,6 +44,7 @@ const allNavItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
   const [userData, setUserData] = useState<UserData | null>(null);
   const user = userData || {
     name: 'Loading...',
@@ -56,23 +58,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [hotelLogo, setHotelLogo] = useState('');
   const [hotelName, setHotelName] = useState('HotelPrime');
 
   useEffect(() => {
     const socket = connectSocket();
-    const handleNewNotification = () => setHasUnreadNotifications(true);
     const handleSettingsUpdated = (data: any) => {
       if (data.category === 'general') {
         if (data.updates.hotelName) setHotelName(data.updates.hotelName);
         if (data.updates.hotelLogo !== undefined) setHotelLogo(data.updates.hotelLogo);
       }
     };
-    socket.on('notification:new', handleNewNotification);
     socket.on('settings:updated', handleSettingsUpdated);
     return () => {
-      socket.off('notification:new', handleNewNotification);
       socket.off('settings:updated', handleSettingsUpdated);
     };
   }, []);
@@ -277,14 +275,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           
           <div className="flex items-center gap-6">
-            <button 
-              className="relative p-2 text-theme-muted hover:text-theme-text transition-colors"
-              onClick={() => setHasUnreadNotifications(false)}
+            <button
+              className="p-2 text-theme-muted hover:text-theme-text transition-colors"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              <Bell size={24} />
-              {hasUnreadNotifications && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-theme-border"></span>
-              )}
+              {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
             </button>
 
             <div className="relative">

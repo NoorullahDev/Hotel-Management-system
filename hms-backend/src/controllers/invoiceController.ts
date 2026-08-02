@@ -224,7 +224,8 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
       try {
         let logoPath = '';
         if (hotelLogo.startsWith('/uploads/')) {
-          logoPath = path.join(__dirname, '../..', hotelLogo);
+          const uploadDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads');
+          logoPath = path.join(uploadDir, hotelLogo.replace('/uploads/', ''));
         }
         if (logoPath && fs.existsSync(logoPath)) {
           const logoSize = 40;

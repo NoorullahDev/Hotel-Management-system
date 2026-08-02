@@ -155,17 +155,24 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
     const totalAmount = invoice.items.reduce((sum: Prisma.Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
     const existingPaid = booking.payments.reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
     const balanceDue = totalAmount.minus(existingPaid);
-    const paymentAmount = new Decimal(amount);
-
-    if (paymentAmount.gt(balanceDue)) {
-      throw new Error('Payment amount exceeds remaining balance');
+    let finalAmount = new Decimal(amount);
+    
+    // Handle floating point rounding differences from UI (e.g. 135.795 displayed as 135.80)
+    if (finalAmount.gt(balanceDue)) {
+      if (finalAmount.minus(balanceDue).lte(0.02)) {
+        finalAmount = balanceDue;
+      } else {
+        const err: any = new Error('Payment amount exceeds remaining balance');
+        err.statusCode = 400;
+        throw err;
+      }
     }
 
     const payment = await tx.payment.create({
-      data: { bookingId, amount, method }
+      data: { bookingId, amount: finalAmount, method }
     });
 
-    const paidAmount = existingPaid.plus(paymentAmount);
+    const paidAmount = existingPaid.plus(finalAmount);
 
     let checkedOut = false;
     let updatedBooking = null;

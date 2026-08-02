@@ -114,9 +114,9 @@ export default function BillingPage() {
       setFolioData(newData);
       setPaymentAmount('');
       fetchBookings(); // refresh main list
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing payment', error);
-      alert('Network error processing payment');
+      alert(error.message || 'Network error processing payment');
     }
   };
 
@@ -154,7 +154,7 @@ export default function BillingPage() {
   }), [bookings, searchQuery, statusFilter]);
 
   return (
-    <div className="flex flex-col gap-6 h-full p-2">
+    <div className="flex flex-col gap-6 p-2">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -209,13 +209,13 @@ export default function BillingPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 flex-1">
         
         {/* Left Column */}
-        <div className="flex flex-col gap-6 overflow-hidden">
+        <div className="flex flex-col gap-6">
           
           {/* Invoice List */}
-          <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex-1 flex flex-col overflow-hidden min-h-[400px]">
+          <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex-1 flex flex-col min-h-[400px]">
             <div className="p-4 border-b border-theme-border flex items-center justify-between">
               <h2 className="text-sm font-bold text-theme-text">Invoice List</h2>
               <div className="flex items-center gap-2 relative">
@@ -337,13 +337,13 @@ export default function BillingPage() {
         </div>
 
         {/* Right Column - Folio Details */}
-        <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex flex-col overflow-hidden">
+        <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex flex-col">
           {loadingFolio ? (
              <div className="flex-1 flex items-center justify-center text-theme-muted">Loading details...</div>
           ) : !folioData ? (
              <div className="flex-1 flex items-center justify-center text-theme-muted-light text-sm">Select an invoice from the list to view details</div>
           ) : (
-            <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
+            <div className="flex flex-col h-full">
               
               {/* Hotel Branding */}
               <div className="p-5 text-center border-b border-theme-border bg-theme-main/50">

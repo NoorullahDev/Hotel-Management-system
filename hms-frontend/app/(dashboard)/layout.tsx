@@ -180,27 +180,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       `}>
         
         {/* Logo Area */}
-        <div className="shrink-0 h-20 md:h-24 flex items-center justify-between px-6 border-b border-theme-border">
+        <div className="shrink-0 h-16 md:h-20 flex items-center justify-between px-6 border-b border-theme-border">
           <div className="flex items-center gap-4 text-primary">
             {hotelLogo ? (
-              <img loading="lazy" decoding="async" src={hotelLogo.startsWith('http') || hotelLogo.startsWith('/images/') ? hotelLogo : `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}${hotelLogo}`} alt="Hotel Logo" className="h-10 w-auto object-contain rounded-xl shadow-sm" />
+              <img loading="lazy" decoding="async" src={hotelLogo.startsWith('http') || hotelLogo.startsWith('/images/') ? hotelLogo : `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}${hotelLogo}`} alt="Hotel Logo" className="h-8 w-auto object-contain rounded-xl shadow-sm" />
             ) : (
-              <div className="p-2 border border-primary/50 rounded-xl flex-shrink-0 bg-blue-500/10">
-                <Building2 size={24} className="text-primary" />
+              <div className="p-1.5 border border-primary/50 rounded-xl flex-shrink-0 bg-blue-500/10">
+                <Building2 size={20} className="text-primary" />
               </div>
             )}
             <div className={`flex flex-col uppercase flex-1 min-w-0 ${outfit.className}`}>
-              <span className="text-base font-bold text-theme-text tracking-wide break-words line-clamp-2 leading-tight">{hotelName}</span>
-              <span className="text-[9px] text-blue-400 tracking-[0.15em] mt-0.5">Hotel Management</span>
+              <span className="text-sm font-bold text-theme-text tracking-wide break-words line-clamp-2 leading-tight">{hotelName}</span>
+              <span className="text-[8px] text-blue-400 tracking-[0.15em] mt-0.5">Hotel Management</span>
             </div>
           </div>
           <button className="md:hidden text-theme-muted" onClick={() => setIsMobileMenuOpen(false)}>
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
+        <nav className="flex-1 overflow-hidden py-2 px-4 space-y-0">
           {allowedNavItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -208,40 +208,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name} 
                 href={item.href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                className={`flex items-center gap-3 px-3 py-1.5 rounded-xl transition-colors ${
                   isActive 
                     ? 'bg-gradient-to-r from-[#0066FF] to-[#0052CC] text-white shadow-lg shadow-[#0066FF]/20' 
                     : 'text-theme-muted hover:bg-theme-hover hover:text-theme-text'
                 }`}
               >
-                <item.icon size={20} />
-                <span className="font-medium text-sm">{item.name}</span>
+                <item.icon size={18} />
+                <span className="font-medium text-xs">{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* Bottom Actions & Widget */}
-        <div className="shrink-0 p-4 border-t border-theme-border flex flex-col gap-4">
+        <div className="shrink-0 p-3 border-t border-theme-border flex flex-col gap-2">
           <button 
             onClick={() => setShowLogoutModal(true)}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors w-full"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors w-full"
           >
-            <Power size={20} />
-            <span className="font-medium text-sm">Logout</span>
+            <Power size={18} />
+            <span className="font-medium text-xs">Logout</span>
           </button>
 
-          <div className="bg-theme-main rounded-xl p-4 flex flex-col gap-3">
+          <div className="bg-theme-main rounded-xl p-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
-              <MapPin size={16} className="text-theme-muted-light" />
+              <MapPin size={14} className="text-theme-muted-light" />
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-theme-text">{user.name}</span>
-                <span className="text-xs font-semibold text-theme-muted-light">{hotelName}</span>
+                <span className="text-xs font-bold text-theme-text">{user.name}</span>
+                <span className="text-[10px] font-semibold text-theme-muted-light leading-none">{hotelName}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-1 border-t border-theme-border pt-2">
-              <span className="text-xs text-theme-muted">{formatDate(currentTime)}</span>
-              <span className="text-sm font-medium text-theme-text">{formatTime(currentTime)}</span>
+            <div className="flex flex-col gap-0.5 border-t border-theme-border pt-1.5">
+              <span className="text-[10px] text-theme-muted">{formatDate(currentTime)}</span>
+              <span className="text-xs font-medium text-theme-text">{formatTime(currentTime)}</span>
             </div>
           </div>
         </div>

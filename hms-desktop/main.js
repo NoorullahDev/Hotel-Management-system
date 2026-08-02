@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -125,6 +125,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
     show: false,
     autoHideMenuBar: true,
@@ -138,6 +139,25 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Handle PDF saving
+  ipcMain.handle('save-pdf', async (event, buffer, defaultFilename) => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save PDF Report',
+      defaultPath: defaultFilename || 'report.pdf',
+      filters: [{ name: 'PDF Documents', extensions: ['pdf'] }]
+    });
+
+    if (canceled || !filePath) return false;
+
+    try {
+      fs.writeFileSync(filePath, Buffer.from(buffer));
+      return true;
+    } catch (err) {
+      console.error('Failed to save PDF:', err);
+      return false;
+    }
   });
 }
 

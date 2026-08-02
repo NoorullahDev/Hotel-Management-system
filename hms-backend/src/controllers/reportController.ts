@@ -64,9 +64,9 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
 
     const totalRevenue   = revCur._sum.amount?.toNumber()  ?? 0;
     const prevRevenue    = revPrev._sum.amount?.toNumber()  ?? 0;
-    const revDelta       = prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : (totalRevenue > 0 ? '100.0' : '0.0');
+    const revDelta       = prevRevenue > 0 ? (((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : (totalRevenue > 0 ? 'New' : '—');
     const occupancyRate  = totalRooms  > 0 ? (((occupiedRooms + reservedRooms) / totalRooms) * 100).toFixed(1) : '0.0';
-    const bookDelta      = bookPrev    > 0 ? (((bookCur - bookPrev) / bookPrev) * 100).toFixed(1) : (bookCur > 0 ? '100.0' : '0.0');
+    const bookDelta      = bookPrev    > 0 ? (((bookCur - bookPrev) / bookPrev) * 100).toFixed(1) : (bookCur > 0 ? 'New' : '—');
 
     // Average length of stay — fetch once with select (minimal columns)
     const stayBookings = await prisma.booking.findMany({
@@ -93,25 +93,25 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
 
     const losDelta = prevAvgLOS > 0
       ? (((parseFloat(avgLOS) - prevAvgLOS) / prevAvgLOS) * 100).toFixed(1)
-      : (parseFloat(avgLOS) > 0 ? '100.0' : '0.0');
+      : (parseFloat(avgLOS) > 0 ? 'New' : '—');
 
     const satisfaction     = feedCur._avg.rating ? feedCur._avg.rating.toFixed(1) : '0.0';
     const prevSatisfaction = feedPrev._avg.rating ?? 0;
     const satDelta         = prevSatisfaction > 0
       ? ((parseFloat(satisfaction) - prevSatisfaction) / prevSatisfaction * 100).toFixed(1)
-      : (parseFloat(satisfaction) > 0 ? '100.0' : '0.0');
+      : (parseFloat(satisfaction) > 0 ? 'New' : '—');
 
     res.json({
       totalRevenue,
-      revenueDelta:       parseFloat(revDelta),
+      revenueDelta:       revDelta === 'New' || revDelta === '—' ? revDelta : parseFloat(revDelta),
       occupancyRate:      parseFloat(occupancyRate),
       occupancyDelta:     null, // Requires historical snapshot data not currently tracked
       totalBookings:      bookCur,
-      bookingsDelta:      parseFloat(bookDelta),
+      bookingsDelta:      bookDelta === 'New' || bookDelta === '—' ? bookDelta : parseFloat(bookDelta),
       avgLOS:             parseFloat(avgLOS),
-      losDelta:           parseFloat(losDelta),
+      losDelta:           losDelta === 'New' || losDelta === '—' ? losDelta : parseFloat(losDelta),
       guestSatisfaction:  parseFloat(satisfaction),
-      satisfactionDelta:  parseFloat(satDelta),
+      satisfactionDelta:  satDelta === 'New' || satDelta === '—' ? satDelta : parseFloat(satDelta),
     });
   });
 

@@ -364,6 +364,10 @@ export default function ReportsPage() {
   const [revTable, setRevTable] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Toggle states for tables
+  const [showRevTable, setShowRevTable] = useState(false);
+  const [showOccTable, setShowOccTable] = useState(false);
+
   const qs = `?startDate=${range.start}&endDate=${range.end}`;
 
   const fetchAll = useCallback(() => {
@@ -443,162 +447,192 @@ export default function ReportsPage() {
     a.click();
   };
 
-    const generatePDF = async () => {
+  const generatePDF = async () => {
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       
-      // Cover Section
-      doc.setFontSize(22);
+      const themeColor: [number, number, number] = [79, 70, 229]; // Indigo
+      
+      // ─── Header Section ──────────────────────────────────────────
+      doc.setFontSize(24);
       doc.setFont("helvetica", "bold");
-      doc.text(hotelName, pageWidth / 2, 20, { align: 'center' });
+      doc.setTextColor(30, 41, 59);
+      doc.text(hotelName, pageWidth / 2, 22, { align: 'center' });
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      doc.text(hotelAddress, pageWidth / 2, 28, { align: 'center' });
+      doc.text(hotelAddress, pageWidth / 2, 30, { align: 'center' });
       if (contactNumber || email) {
-        doc.text([contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | '), pageWidth / 2, 34, { align: 'center' });
+        doc.text([contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | '), pageWidth / 2, 36, { align: 'center' });
       }
       
+      // Separator Line
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.5);
+      doc.line(14, 42, pageWidth - 14, 42);
+
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor(40);
-      doc.text("Comprehensive Performance Report", pageWidth / 2, 48, { align: 'center' });
+      doc.setTextColor(15, 23, 42);
+      doc.text("Comprehensive Performance Report", 14, 52);
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      doc.text(`Period: ${range.start} to ${range.end}`, pageWidth / 2, 55, { align: 'center' });
+      doc.text(`Period: ${range.start} to ${range.end}`, 14, 58);
       
-      let currentY = 65;
+      const generatedDate = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      doc.text(`Generated on: ${generatedDate}`, 14, 63);
+      
+      let currentY = 75;
 
-      // 1. KPI Summary Section
-      doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
+      // ─── 1. KPI Summary Section ─────────────────────────────────
+      doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(15, 23, 42);
       doc.text("Key Performance Indicators", 14, currentY);
-      currentY += 8;
+      currentY += 6;
 
       autoTable(doc, {
         startY: currentY,
         head: [['Total Revenue', 'Occupancy Rate', 'Total Bookings', 'Avg Length of Stay', 'Guest Satisfaction']],
         body: [[
-          formatCurrency(summary?.revenue ?? 0, currencySymbol),
+          formatCurrency(summary?.totalRevenue ?? 0, currencySymbol),
           `${summary?.occupancyRate ?? 0}%`,
           String(summary?.totalBookings ?? 0),
           `${summary?.avgLOS ?? 0} Nights`,
           `${summary?.guestSatisfaction ?? 0} / 5`
         ]],
         theme: 'grid',
-        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', halign: 'center' },
+        headStyles: { fillColor: themeColor, textColor: 255, fontStyle: 'bold', halign: 'center' },
         bodyStyles: { fontStyle: 'bold', halign: 'center', fontSize: 11, textColor: [30, 41, 59] },
         margin: { top: 20 },
       });
       currentY = (doc as any).lastAutoTable.finalY + 15;
 
-      const captureChart = async (id: string) => {
-        const el = document.getElementById(id);
-        if (!el) return null;
-        const canvas = await html2canvas(el, { scale: 2 });
-        return canvas.toDataURL('image/png');
+      // ─── Helper for adding section titles ────────────────────────
+      const addSectionTitle = (title: string) => {
+        if (currentY > pageHeight - 30) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text(title, 14, currentY);
+        currentY += 6;
       };
 
-      // Capture all 6 charts
-      const revChartImg = await captureChart('chart-revenue');
-      const occChartImg = await captureChart('chart-occupancy');
-      const bookChartImg = await captureChart('chart-bookings');
-      
-      const restChartImg = await captureChart('chart-restaurant');
-      const staffChartImg = await captureChart('chart-staff');
-      const deptChartImg = await captureChart('chart-dept-revenue');
-
-      // 2. Charts Section (Row 1)
-      if (revChartImg) {
-        if (currentY + 65 > pageHeight - 20) { doc.addPage(); currentY = 20; }
-        doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
-        doc.text("Revenue Trend", 14, currentY);
-        currentY += 5;
-        doc.addImage(revChartImg, 'PNG', 14, currentY, pageWidth - 28, 60);
-        currentY += 65;
-      }
-
-      if (occChartImg && bookChartImg) {
-        if (currentY + 65 > pageHeight - 20) { doc.addPage(); currentY = 20; }
-        doc.setFontSize(14); doc.setTextColor(0); doc.text("Occupancy & Bookings", 14, currentY);
-        currentY += 5;
-        doc.addImage(occChartImg, 'PNG', 14, currentY, (pageWidth - 30) / 2, 60);
-        doc.addImage(bookChartImg, 'PNG', 14 + (pageWidth - 30) / 2 + 2, currentY, (pageWidth - 30) / 2, 60);
-        currentY += 65;
-      }
-      
-      // 3. Charts Section (Row 2)
-      if (restChartImg) {
-        if (currentY + 65 > pageHeight - 20) { doc.addPage(); currentY = 20; }
-        doc.setFontSize(14); doc.setTextColor(0); doc.text("Restaurant Revenue", 14, currentY);
-        currentY += 5;
-        doc.addImage(restChartImg, 'PNG', 14, currentY, pageWidth - 28, 60);
-        currentY += 65;
-      }
-      
-      if (staffChartImg && deptChartImg) {
-        if (currentY + 65 > pageHeight - 20) { doc.addPage(); currentY = 20; }
-        doc.setFontSize(14); doc.setTextColor(0); doc.text("Staff Performance & Revenue by Department", 14, currentY);
-        currentY += 5;
-        doc.addImage(staffChartImg, 'PNG', 14, currentY, (pageWidth - 30) / 2, 60);
-        doc.addImage(deptChartImg, 'PNG', 14 + (pageWidth - 30) / 2 + 2, currentY, (pageWidth - 30) / 2, 60);
-        currentY += 65;
-      }
-
-      // 4. Detailed Daily Breakdown (Tables)
-      doc.addPage();
-      currentY = 20;
-      doc.setFontSize(16); doc.setTextColor(40); doc.text("Detailed Daily Breakdown", 14, currentY);
-      currentY += 10;
-
+      // ─── 2. Detailed Daily Revenue Breakdown ──────────────────────
+      addSectionTitle("Detailed Daily Revenue Breakdown");
       autoTable(doc, {
         startY: currentY,
         head: [['Date', 'Rooms Revenue', 'Restaurant Revenue', 'Other Revenue', 'Total']],
         body: revTable?.rows?.map((r: any) => [r.date, formatCurrency(r.roomsRevenue, currencySymbol), formatCurrency(r.restaurantRevenue, currencySymbol), formatCurrency(r.otherRevenue, currencySymbol), formatCurrency(r.total, currencySymbol)]) || [],
         foot: revTable?.totals ? [['Total', formatCurrency(revTable.totals.roomsRevenue, currencySymbol), formatCurrency(revTable.totals.restaurantRevenue, currencySymbol), formatCurrency(revTable.totals.otherRevenue, currencySymbol), formatCurrency(revTable.totals.total, currencySymbol)]] : [],
         theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
-        footStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
+        headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+        footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { top: 20 },
       });
+      currentY = (doc as any).lastAutoTable.finalY + 15;
 
+      // ─── 3. Occupancy Breakdown ──────────────────────────────────
+      addSectionTitle("Occupancy Breakdown");
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 15,
+        startY: currentY,
         head: [['Date', 'Occupied', 'Available', 'Reserved', 'Occupancy %']],
         body: occupancy?.table?.map((r: any) => [r.date, r.occupied, r.available, r.reserved, `${r.occupancyPct}%`]) || [],
         foot: occupancy?.table?.length ? [['Total / Avg', String(occupancy.table.reduce((a:number,r:any)=>a+r.occupied,0)), String(occupancy.table.reduce((a:number,r:any)=>a+r.available,0)), String(occupancy.table.reduce((a:number,r:any)=>a+r.reserved,0)), `${occupancy?.occupancyRate}%`]] : [],
         theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
-        footStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
+        headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+        footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
         margin: { top: 20 },
       });
+      currentY = (doc as any).lastAutoTable.finalY + 15;
 
-      // 5. Staff Report Table
-      doc.addPage();
-      currentY = 20;
-      doc.setFontSize(16); doc.setTextColor(40); doc.text("Staff Report", 14, currentY);
-      currentY += 10;
-      
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Staff Name', 'Department', 'Tasks Completed', 'Efficiency %', 'Rating']],
-        body: staffPerf?.map((s: any) => [s.name, s.department, s.tasksCompleted, `${s.efficiency}%`, s.rating]) || [],
-        theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
-        margin: { top: 20 },
-      });
+      // ─── 4. Bookings Overview ────────────────────────────────────
+      if (bookings && bookings.length > 0) {
+        addSectionTitle("Bookings Overview");
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Date', 'Number of Bookings']],
+          body: bookings.map((b: any) => [b.name, String(b.bookings)]),
+          foot: [['Total', String(bookings.reduce((a:number,b:any) => a + b.bookings, 0))]],
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { top: 20 },
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
 
-      // 6. Second pass: Add continuous page numbers to all pages
+      // ─── 5. Restaurant Sales ────────────────────────────────────
+      if (restaurant && restaurant.length > 0) {
+        addSectionTitle("Restaurant Sales");
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Date', 'Orders', 'Total Sales', 'Food Sales', 'Beverage Sales', 'Avg Order Value', 'Top Item']],
+          body: restaurant.map((r: any) => [
+            r.name, 
+            String(r.orders), 
+            formatCurrency(r.revenue, currencySymbol),
+            formatCurrency(r.foodSales, currencySymbol),
+            formatCurrency(r.beverageSales, currencySymbol),
+            formatCurrency(r.avgOrder, currencySymbol),
+            r.topItem
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { top: 20 },
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
+      // ─── 6. Department Revenue ──────────────────────────────────
+      if (revByDept && revByDept.data && revByDept.data.length > 0) {
+        addSectionTitle("Revenue by Department");
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Department', 'Revenue']],
+          body: revByDept.data.map((d: any) => [d.name, formatCurrency(d.value, currencySymbol)]),
+          foot: [['Total Revenue', formatCurrency(revByDept.total, currencySymbol)]],
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { top: 20 },
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
+      // ─── 7. Staff Performance ───────────────────────────────────
+      if (staffPerf && staffPerf.length > 0) {
+        addSectionTitle("Staff Performance");
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Staff Name', 'Department', 'Tasks Completed', 'Efficiency %', 'Rating']],
+          body: staffPerf.map((s: any) => [s.name, s.department, String(s.tasksCompleted), `${s.efficiency}%`, s.rating]),
+          theme: 'grid',
+          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+          margin: { top: 20 },
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
+      // ─── Pagination Footer ──────────────────────────────────────
       const totalPages = (doc as any).internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
         doc.setTextColor(150);
-        doc.text(`${hotelName} - ${range.start} to ${range.end}`, 14, pageHeight - 10);
+        doc.text(`${hotelName} - Performance Report`, 14, pageHeight - 10);
         doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 10, { align: 'right' });
       }
 
@@ -979,20 +1013,81 @@ export default function ReportsPage() {
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
+            <div className="mt-2 text-right">
+              <button
+                onClick={() => setShowRevTable(!showRevTable)}
+                className="text-xs text-blue-500 hover:text-blue-400 font-medium underline underline-offset-2 transition-colors"
+              >
+                {showRevTable ? "Hide Detailed Table" : "View Detailed Table"}
+              </button>
+            </div>
+            {showRevTable && (
+              <div className="mt-4">
+                <DataTable
+                  title="Revenue Report"
+                  headers={[
+                    "Date",
+                    "Rooms Revenue",
+                    "Restaurant Rev.",
+                    "Other Revenue",
+                    "Total",
+                  ]}
+                  rows={revRows}
+                  totalRow={revTotalRow}
+                  onViewFull={() =>
+                    setFullModal({
+                      title: "Revenue Report — Full Data",
+                      headers: [
+                        "Date",
+                        "Rooms Revenue",
+                        "Restaurant Revenue",
+                        "Other Revenue",
+                        "Total",
+                      ],
+                      rows: (revTable?.rows || []).map((r: any) => [
+                        r.date,
+                        formatCurrency(r.roomsRevenue, currencySymbol),
+                        formatCurrency(r.restaurantRevenue, currencySymbol),
+                        formatCurrency(r.otherRevenue, currencySymbol),
+                        formatCurrency(r.total, currencySymbol),
+                      ]),
+                      totalRow: revTable?.totals
+                        ? [
+                            "Total",
+                            formatCurrency(
+                              revTable.totals.roomsRevenue,
+                              currencySymbol,
+                            ),
+                            formatCurrency(
+                              revTable.totals.restaurantRevenue,
+                              currencySymbol,
+                            ),
+                            formatCurrency(
+                              revTable.totals.otherRevenue,
+                              currencySymbol,
+                            ),
+                            formatCurrency(revTable.totals.total, currencySymbol),
+                          ]
+                        : undefined,
+                    })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Occupancy Rate Donut */}
           <div id="chart-occupancy" className="flex-1 min-w-0">
             <ChartCard title="Occupancy Rate">
               <div className="flex items-center gap-6">
-                <ResponsiveContainer width={180} height={180}>
+                <ResponsiveContainer width={140} height={140}>
                   <PieChart>
                     <Pie
                       data={occupancy?.donut || []}
                       cx="50%"
                       cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
+                      innerRadius={40}
+                      outerRadius={60}
                       dataKey="value"
                       nameKey="name"
                       startAngle={90}
@@ -1008,7 +1103,7 @@ export default function ReportsPage() {
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fill="var(--theme-text)"
-                      fontSize={18}
+                      fontSize={15}
                       fontWeight={700}
                     >
                       {occupancy?.occupancyRate ?? 0}%
@@ -1019,7 +1114,7 @@ export default function ReportsPage() {
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fill="#94a3b8"
-                      fontSize={10}
+                      fontSize={9}
                     >
                       Occupancy
                     </text>
@@ -1046,6 +1141,58 @@ export default function ReportsPage() {
                 </div>
               </div>
             </ChartCard>
+            <div className="mt-2 text-right">
+              <button
+                onClick={() => setShowOccTable(!showOccTable)}
+                className="text-xs text-blue-500 hover:text-blue-400 font-medium underline underline-offset-2 transition-colors"
+              >
+                {showOccTable ? "Hide Detailed Table" : "View Detailed Table"}
+              </button>
+            </div>
+            {showOccTable && (
+              <div className="mt-4">
+                <DataTable
+                  title="Occupancy Report"
+                  headers={[
+                    "Date",
+                    "Occupied",
+                    "Available",
+                    "Reserved",
+                    "Occupancy %",
+                  ]}
+                  rows={occRows}
+                  totalRow={occTotalRow}
+                  onViewFull={() =>
+                    setFullModal({
+                      title: "Occupancy Report — Full Data",
+                      headers: [
+                        "Date",
+                        "Occupied",
+                        "Available",
+                        "Reserved",
+                        "Occupancy %",
+                      ],
+                      rows: (occupancy?.table || []).map((r: any) => [
+                        r.date,
+                        r.occupied,
+                        r.available,
+                        r.reserved,
+                        `${r.occupancyPct}%`,
+                      ]),
+                      totalRow: occTotalRow
+                        ? [
+                            "Total",
+                            String(occTotalRow[1]),
+                            String(occTotalRow[2]),
+                            String(occTotalRow[3]),
+                            `${occupancy?.occupancyRate}%`,
+                          ]
+                        : undefined,
+                    })
+                  }
+                />
+              </div>
+            )}
           </div>
 
           {/* Bookings Overview Bar */}
@@ -1279,97 +1426,8 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* ── Data Tables Row ───────────────────────────────────────── */}
+        {/* ── Data Tables Row (Staff) ───────────────────────────────── */}
         <div className="flex flex-col gap-4 w-full">
-          <DataTable
-            title="Revenue Report"
-            headers={[
-              "Date",
-              "Rooms Revenue",
-              "Restaurant Rev.",
-              "Other Revenue",
-              "Total",
-            ]}
-            rows={revRows}
-            totalRow={revTotalRow}
-            onViewFull={() =>
-              setFullModal({
-                title: "Revenue Report — Full Data",
-                headers: [
-                  "Date",
-                  "Rooms Revenue",
-                  "Restaurant Revenue",
-                  "Other Revenue",
-                  "Total",
-                ],
-                rows: (revTable?.rows || []).map((r: any) => [
-                  r.date,
-                  formatCurrency(r.roomsRevenue, currencySymbol),
-                  formatCurrency(r.restaurantRevenue, currencySymbol),
-                  formatCurrency(r.otherRevenue, currencySymbol),
-                  formatCurrency(r.total, currencySymbol),
-                ]),
-                totalRow: revTable?.totals
-                  ? [
-                      "Total",
-                      formatCurrency(
-                        revTable.totals.roomsRevenue,
-                        currencySymbol,
-                      ),
-                      formatCurrency(
-                        revTable.totals.restaurantRevenue,
-                        currencySymbol,
-                      ),
-                      formatCurrency(
-                        revTable.totals.otherRevenue,
-                        currencySymbol,
-                      ),
-                      formatCurrency(revTable.totals.total, currencySymbol),
-                    ]
-                  : undefined,
-              })
-            }
-          />
-          <DataTable
-            title="Occupancy Report"
-            headers={[
-              "Date",
-              "Occupied",
-              "Available",
-              "Reserved",
-              "Occupancy %",
-            ]}
-            rows={occRows}
-            totalRow={occTotalRow}
-            onViewFull={() =>
-              setFullModal({
-                title: "Occupancy Report — Full Data",
-                headers: [
-                  "Date",
-                  "Occupied",
-                  "Available",
-                  "Reserved",
-                  "Occupancy %",
-                ],
-                rows: (occupancy?.table || []).map((r: any) => [
-                  r.date,
-                  r.occupied,
-                  r.available,
-                  r.reserved,
-                  `${r.occupancyPct}%`,
-                ]),
-                totalRow: occTotalRow
-                  ? [
-                      "Total",
-                      String(occTotalRow[1]),
-                      String(occTotalRow[2]),
-                      String(occTotalRow[3]),
-                      `${occupancy?.occupancyRate}%`,
-                    ]
-                  : undefined,
-              })
-            }
-          />
           <DataTable
             title="Staff Report"
             headers={[

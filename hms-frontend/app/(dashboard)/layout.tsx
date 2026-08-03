@@ -163,7 +163,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-theme-main text-theme-text font-sans md:pl-64">
+    <div className="flex h-screen overflow-hidden bg-theme-main text-theme-text font-sans md:pl-80">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -175,7 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-theme-card shadow-soft border-r border-theme-border flex flex-col transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-80 bg-theme-card shadow-soft border-r border-theme-border flex flex-col transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         
@@ -183,15 +183,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="shrink-0 h-16 md:h-20 flex items-center justify-between px-6 border-b border-theme-border">
           <div className="flex items-center gap-4 text-primary">
             {hotelLogo ? (
-              <img loading="lazy" decoding="async" src={hotelLogo.startsWith('http') || hotelLogo.startsWith('/images/') ? hotelLogo : `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}${hotelLogo}`} alt="Hotel Logo" className="h-8 w-auto object-contain rounded-xl shadow-sm" />
+              <img loading="lazy" decoding="async" src={hotelLogo.startsWith('http') || hotelLogo.startsWith('/images/') ? hotelLogo : `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}${hotelLogo}`} alt="Hotel Logo" className="h-10 w-auto object-contain rounded-xl shadow-sm" />
             ) : (
-              <div className="p-1.5 border border-primary/50 rounded-xl flex-shrink-0 bg-blue-500/10">
-                <Building2 size={20} className="text-primary" />
+              <div className="p-2 border border-primary/50 rounded-xl flex-shrink-0 bg-blue-500/10">
+                <Building2 size={24} className="text-primary" />
               </div>
             )}
             <div className={`flex flex-col uppercase flex-1 min-w-0 ${outfit.className}`}>
-              <span className="text-sm font-bold text-theme-text tracking-wide break-words line-clamp-2 leading-tight">{hotelName}</span>
-              <span className="text-[8px] text-blue-400 tracking-[0.15em] mt-0.5">Hotel Management</span>
+              <span className="text-base font-extrabold text-theme-text tracking-wide break-words line-clamp-2 leading-tight">{hotelName}</span>
+              <span className="text-[9px] text-blue-400 tracking-[0.15em] mt-0.5 font-semibold">Hotel Management</span>
             </div>
           </div>
           <button className="md:hidden text-theme-muted" onClick={() => setIsMobileMenuOpen(false)}>
@@ -200,7 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-hidden py-2 px-4 space-y-0">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-4 space-y-1 custom-scrollbar">
           {allowedNavItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -208,42 +208,51 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name} 
                 href={item.href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-1.5 rounded-xl transition-colors ${
+                className={`flex items-center gap-3 px-3 h-11 rounded-xl transition-all duration-200 ease-in-out group ${
                   isActive 
-                    ? 'bg-gradient-to-r from-[#0066FF] to-[#0052CC] text-white shadow-lg shadow-[#0066FF]/20' 
-                    : 'text-theme-muted hover:bg-theme-hover hover:text-theme-text'
+                    ? 'bg-primary/10 text-primary font-semibold relative overflow-hidden' 
+                    : 'text-theme-muted hover:bg-theme-hover hover:text-theme-text font-medium'
                 }`}
               >
-                <item.icon size={18} />
-                <span className="font-medium text-xs">{item.name}</span>
+                {isActive && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-md"></div>
+                )}
+                <div className={`flex items-center justify-center transition-transform duration-200 ${isActive ? 'scale-105' : 'group-hover:scale-105'}`}>
+                  <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                </div>
+                <span className="text-[15px] tracking-wide">{item.name}</span>
               </Link>
             );
           })}
         </nav>
 
         {/* Bottom Actions & Widget */}
-        <div className="shrink-0 p-3 border-t border-theme-border flex flex-col gap-2">
-          <button 
-            onClick={() => setShowLogoutModal(true)}
-            className="flex items-center gap-3 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors w-full"
-          >
-            <Power size={18} />
-            <span className="font-medium text-xs">Logout</span>
-          </button>
-
-          <div className="bg-theme-main rounded-xl p-2.5 flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <MapPin size={14} className="text-theme-muted-light" />
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-theme-text">{user.name}</span>
-                <span className="text-[10px] font-semibold text-theme-muted-light leading-none">{hotelName}</span>
+        <div className="shrink-0 p-4 border-t border-theme-border flex flex-col gap-3 bg-theme-card">
+          <div className="bg-theme-main rounded-xl p-3 flex flex-col gap-2 border border-theme-border/60">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                <MapPin size={16} className="text-blue-500" />
+              </div>
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-sm font-bold text-theme-text truncate">{user.name}</span>
+                <span className="text-[11px] font-semibold text-theme-muted-light truncate leading-tight mt-0.5">{hotelName}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-0.5 border-t border-theme-border pt-1.5">
-              <span className="text-[10px] text-theme-muted">{formatDate(currentTime)}</span>
-              <span className="text-xs font-medium text-theme-text">{formatTime(currentTime)}</span>
+            <div className="flex flex-col gap-1 border-t border-theme-border/60 pt-3 mt-1">
+              <span className="text-[11px] font-medium text-theme-muted uppercase tracking-wider">{formatDate(currentTime)}</span>
+              <span className="text-sm font-bold text-theme-text">{formatTime(currentTime)}</span>
             </div>
           </div>
+
+          <button 
+            onClick={() => setShowLogoutModal(true)}
+            className="flex items-center gap-3 px-3 h-11 rounded-xl text-red-500 hover:bg-red-500/10 transition-colors duration-200 ease-in-out w-full font-medium"
+          >
+            <div className="flex items-center justify-center">
+              <Power size={20} strokeWidth={2} />
+            </div>
+            <span className="text-[15px] tracking-wide">Logout</span>
+          </button>
         </div>
       </aside>
 
@@ -323,7 +332,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Page Content Container */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 custom-scrollbar">
-          {children}
+          <div className="w-full max-w-full overflow-x-hidden">
+            {children}
+          </div>
         </div>
       </main>
 

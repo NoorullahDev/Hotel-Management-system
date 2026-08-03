@@ -9,9 +9,43 @@ export default function LicenseTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [newLicenseKey, setNewLicenseKey] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState('');
   
   const handleRenewClick = () => {
-    alert("Please contact the software provider to renew your license.");
+    setShowModal(true);
+    setSubmitError('');
+    setSubmitSuccess('');
+    setNewLicenseKey('');
+  };
+
+  const handleRenewSubmit = async () => {
+    if (!newLicenseKey.trim()) {
+      setSubmitError('Please enter a license key');
+      return;
+    }
+    try {
+      setSubmitLoading(true);
+      setSubmitError('');
+      setSubmitSuccess('');
+      
+      await api.post('/api/license/activate', { licenseKey: newLicenseKey.trim() });
+      
+      setSubmitSuccess('License activated successfully!');
+      fetchLicense();
+      
+      setTimeout(() => {
+        setShowModal(false);
+      }, 1500);
+      
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to activate license');
+    } finally {
+      setSubmitLoading(false);
+    }
   };
   const fetchLicense = async () => {
     try {
@@ -131,6 +165,64 @@ export default function LicenseTab() {
 
 
 
+
+      {/* Renew License Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl w-full max-w-md p-6 flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-theme-text">Renew License</h3>
+              <button onClick={() => setShowModal(false)} className="text-theme-muted hover:text-theme-text transition-colors">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <p className="text-theme-muted text-sm mb-6">
+              Please enter your new license key below to activate or renew your subscription.
+            </p>
+
+            {submitError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-sm p-3 rounded-xl mb-4 flex items-center gap-2">
+                <XCircle className="w-4 h-4" /> {submitError}
+              </div>
+            )}
+
+            {submitSuccess && (
+              <div className="bg-green-500/10 border border-green-500/20 text-green-500 text-sm p-3 rounded-xl mb-4 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> {submitSuccess}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 mb-6">
+              <label className="text-sm font-medium text-theme-text">License Key</label>
+              <textarea 
+                className="w-full bg-theme-main border border-theme-border rounded-xl p-3 text-theme-text text-sm focus:outline-none focus:border-primary transition-colors resize-none h-24"
+                placeholder="Paste your license key here..."
+                value={newLicenseKey}
+                onChange={(e) => setNewLicenseKey(e.target.value)}
+              />
+            </div>
+
+            <div className="flex w-full gap-3 mt-auto">
+              <button 
+                onClick={() => setShowModal(false)}
+                className="flex-1 py-2.5 px-4 bg-theme-secondary hover:bg-theme-hover text-theme-text font-medium rounded-xl transition-colors"
+                disabled={submitLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleRenewSubmit}
+                disabled={submitLoading}
+                className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Activate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

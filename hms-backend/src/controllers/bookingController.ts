@@ -201,16 +201,19 @@ export const createBooking = asyncHandler(async (req: AuthRequest, res: Response
       arrivalTime: arrivalTime ? new Date(arrivalTime) : undefined,
       guestCount: parseInt(guestCount) || 1,
       additionalGuests: additionalGuests || null,
-      subtotal,
-      tax,
-      total,
+      // subtotal/tax/total default to 0 — actual amounts are calculated at Check-Out via Billing module
+      subtotal: subtotal ?? 0,
+      tax: tax ?? 0,
+      total: total ?? 0,
       status: 'CONFIRMED',
-      payments: {
-        create: {
-          amount: total,
-          method: paymentMethod || 'Credit Card'
+      ...(total !== undefined && paymentMethod ? {
+        payments: {
+          create: {
+            amount: total,
+            method: paymentMethod
+          }
         }
-      }
+      } : {})
     });
 
     await prisma.auditLog.create({

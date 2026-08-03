@@ -115,7 +115,7 @@ function SummaryCard({
   const numDelta = typeof delta === "number" ? delta : 0;
   const positive = isSpecial || numDelta >= 0;
   return (
-    <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex flex-col gap-3 flex-1 min-w-[160px]">
+    <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex flex-col gap-3 flex-1 min-w-0">
       <div className="flex items-center justify-between">
         <span className="text-xs text-theme-muted font-medium uppercase tracking-wider">
           {title}
@@ -233,7 +233,7 @@ function FullReportModal({
                   className="border-b border-theme-border/60 hover:bg-theme-hover/30 transition-colors"
                 >
                   {row.map((cell, ci) => (
-                    <td key={ci} className="px-4 py-2.5 whitespace-nowrap">
+                    <td key={ci} className="px-4 py-2.5">
                       {cell}
                     </td>
                   ))}
@@ -271,7 +271,7 @@ function DataTable({
   onViewFull: () => void;
 }) {
   return (
-    <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl overflow-hidden flex flex-col flex-1 min-w-[280px]">
+    <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex flex-col w-full min-w-0" style={{overflow: 'hidden'}}>
       <div className="p-4 border-b border-theme-border flex items-center justify-between shrink-0">
         <h3 className="text-sm font-bold text-theme-text">{title}</h3>
         <button
@@ -281,8 +281,8 @@ function DataTable({
           View Full Report
         </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto w-full" style={{WebkitOverflowScrolling: 'touch'}}>
+        <table className="min-w-full text-left text-xs">
           <thead>
             <tr className="border-b border-theme-border bg-theme-main">
               {headers.map((h, i) => (
@@ -302,7 +302,7 @@ function DataTable({
                 className="border-b border-theme-border/60 hover:bg-theme-hover/30 transition-colors"
               >
                 {row.map((cell, ci) => (
-                  <td key={ci} className="px-3 py-2 whitespace-nowrap">
+                  <td key={ci} className="px-3 py-2 max-w-[140px] break-words">
                     {cell}
                   </td>
                 ))}
@@ -311,7 +311,7 @@ function DataTable({
             {totalRow && (
               <tr className="bg-theme-main border-t border-theme-border font-bold text-theme-text">
                 {totalRow.map((cell, ci) => (
-                  <td key={ci} className="px-3 py-2.5 whitespace-nowrap">
+                  <td key={ci} className="px-3 py-2.5 max-w-[140px] break-words">
                     {cell}
                   </td>
                 ))}
@@ -733,7 +733,7 @@ export default function ReportsPage() {
   return (
     <>
       {/* ── INTERACTIVE DASHBOARD (HIDDEN ON PRINT) ── */}
-      <div className="print:hidden flex flex-col gap-6">
+      <div className="print:hidden flex flex-col gap-6 w-full max-w-full">
         {/* ── Full Report Modal ────────────────────────────────────────────── */}
         {fullModal && (
           <FullReportModal
@@ -863,7 +863,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Summary Cards ─────────────────────────────────────────── */}
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex flex-wrap gap-4 w-full">
           <SummaryCard
             title="Total Revenue"
             value={
@@ -911,7 +911,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Row 1 Charts ──────────────────────────────────────────── */}
-        <div className="flex gap-4 flex-wrap">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
           {/* Revenue Trend — respects department filter */}
           <div id="chart-revenue" className="flex-1 min-w-0">
             <ChartCard
@@ -1090,7 +1090,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Row 2 Charts ──────────────────────────────────────────── */}
-        <div className="flex gap-4 flex-wrap">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full">
           {/* Restaurant Revenue */}
           <div id="chart-restaurant" className="flex-1 min-w-0">
             <ChartCard
@@ -1280,7 +1280,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Data Tables Row ───────────────────────────────────────── */}
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex flex-col gap-4 w-full">
           <DataTable
             title="Revenue Report"
             headers={[
@@ -1413,6 +1413,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Restaurant Report ──────────────────────────────────────── */}
+        <div className="w-full">
         <DataTable
           title="Restaurant Report"
           headers={[
@@ -1451,6 +1452,8 @@ export default function ReportsPage() {
             })
           }
         />
+
+        </div>
 
         {/* ── Guest Satisfaction Trend ───────────────────────────────── */}
         <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex flex-col gap-4">
@@ -1534,7 +1537,7 @@ export default function ReportsPage() {
             <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">
               Executive Summary
             </h3>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="p-4 border border-gray-300 rounded-lg">
                 <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
                   Total Revenue

@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Check, Users, BedDouble, ChevronRight } from 'lucide-react';
-import Image from 'next/image';
 import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 import { api } from '@/lib/api';
+import { API_BASE } from '@/lib/config';
 
 interface Props {
   onClose?: () => void;
@@ -88,13 +88,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  const [paymentDetails, setPaymentDetails] = useState({
-    method: 'Credit / Debit Card',
-    cardNumber: '**** **** **** 4242',
-    expiry: '06/27',
-    cvv: '123',
-    cardholder: 'John Smith'
-  });
+  // Payment is collected at Check-Out, not during booking.
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [bookingResult, setBookingResult] = useState<any>(null);
@@ -146,10 +140,6 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   };
 
   const nights = calculateDays();
-  const roomRate = selectedRoom ? parseFloat(selectedRoom.price) * nights : 0;
-  const taxes = roomRate * (taxRate / 100);
-  const discount = 30; // mock discount
-  const totalAmount = roomRate + taxes - discount;
 
   const handleConfirm = async () => {
     if (!selectedRoomId || isSubmitting) return;
@@ -169,16 +159,12 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         checkOut: bookingType === 'FOREIGN' ? checkOutDateTime : stayDetails.checkOut,
         arrivalTime: bookingType === 'FOREIGN' ? checkInDateTime : undefined,
         guestCount: parseInt(stayDetails.guests) || (1 + additionalGuests.length),
-        subtotal: roomRate,
-        tax: taxes,
-        total: totalAmount,
-        paymentMethod: paymentDetails.method
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data = await api.post<any>('/api/bookings', payload);
       setBookingResult(data);
-      setStep(6); // Success step
+      setStep(4); // Confirmation step
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       if (err.status === 409) {
@@ -196,7 +182,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   };
 
   const renderStepper = () => {
-    const steps = ['Guest Details', 'Stay Details', 'Room Selection', 'Pricing Summary', 'Payment', 'Confirmation'];
+    const steps = ['Guest Details', 'Stay Details', 'Room Selection', 'Confirmation'];
     return (
       <div className="flex items-center justify-between w-full mb-8 relative">
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-theme-hover -z-10"></div>
@@ -485,8 +471,22 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                         onClick={() => setSelectedRoomId(room.id)}
                         className={`flex gap-4 p-3 rounded-xl border cursor-pointer transition-colors ${selectedRoomId === room.id ? 'border-primary bg-primary/10 shadow-sm' : 'border-theme-border bg-theme-main hover:border-theme-strong'}`}
                       >
-                        <div className="w-24 h-20 rounded-lg overflow-hidden bg-theme-secondary flex-shrink-0 relative">
-                          <Image fill src={room.imageUrl || "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=200&auto=format&fit=crop"} alt="Room" className="object-cover" />
+                        <div className="w-24 h-20 rounded-lg overflow-hidden bg-theme-secondary flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              room.imageUrl
+                                ? room.imageUrl.startsWith('http')
+                                  ? room.imageUrl
+                                  : `${API_BASE}${room.imageUrl}`
+                                : 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=200&auto=format&fit=crop'
+                            }
+                            alt={`Room ${room.number}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=200&auto=format&fit=crop';
+                            }}
+                          />
                         </div>
                         <div className="flex-1 flex flex-col justify-between">
                           <div className="flex justify-between items-start">
@@ -514,127 +514,62 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                   )}
                 </div>
                 <button 
-                  onClick={() => setStep(4)} 
-                  disabled={!selectedRoomId}
+                  onClick={handleConfirm} 
+                  disabled={!selectedRoomId || isSubmitting}
                   className="mt-6 w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors active:scale-95 shadow-md"
                 >
-                  Next <ChevronRight size={16} />
+                  {isSubmitting ? 'Creating Booking...' : 'Confirm Booking'}
                 </button>
               </div>
             )}
 
-            {/* Step 4 & 5: Pricing Summary & Payment */}
-            {(step === 4 || step === 5) && (
-              <>
-                <div className="w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
-                  <h3 className="text-lg font-bold text-theme-text mb-6">Pricing Summary</h3>
-                  <div className="space-y-4 flex-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-theme-muted">Room Rate ({nights} Nights)</span>
-                      <span className="text-theme-text">{currencySymbol} {roomRate.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-theme-muted">Taxes & Fees ({taxRate}%)</span>
-                      <span className="text-theme-text">{currencySymbol} {taxes.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-theme-muted">Discount</span>
-                      <span className="text-green-400">-{currencySymbol} {discount.toFixed(2)}</span>
-                    </div>
-                    <div className="h-px w-full bg-theme-hover my-4"></div>
-                    <div className="flex justify-between font-bold">
-                      <span className="text-theme-text">Total Amount</span>
-                      <span className="text-theme-text text-lg">{currencySymbol} {totalAmount.toFixed(2)}</span>
-                    </div>
-                    <p className="text-[10px] text-theme-muted-light text-right">All amounts are in {currency}</p>
-                  </div>
-                  {step === 4 && (
-                    <button onClick={() => setStep(5)} className="mt-6 w-full py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors active:scale-95 shadow-md">
-                      Next <ChevronRight size={16} />
-                    </button>
-                  )}
-                </div>
+            {/* Steps 4 & 5 (Pricing Summary & Payment) removed — payment is collected at Check-Out */}
 
-                {step === 5 && (
-                  <div className="w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
-                    <h3 className="text-lg font-bold text-theme-text mb-6">Payment</h3>
-                    <div className="space-y-6 flex-1">
-                      <div>
-                        <label className="text-xs font-semibold text-theme-muted mb-3 block">Select Payment Method</label>
-                        <div className="space-y-2">
-                          {['Cash', 'Credit / Debit Card', 'Bank Transfer', 'Digital Wallet'].map(method => (
-                            <label key={method} className="flex items-center gap-3 cursor-pointer">
-                              <input 
-                                type="radio" 
-                                name="paymentMethod" 
-                                value={method}
-                                checked={paymentDetails.method === method}
-                                onChange={(e) => setPaymentDetails({...paymentDetails, method: e.target.value})}
-                                className="w-4 h-4 text-primary bg-theme-main border-theme-border focus:ring-primary"
-                              />
-                              <span className="text-sm text-theme-muted-light">{method}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      {paymentDetails.method === 'Credit / Debit Card' && (
-                        <div className="space-y-4 border-t border-theme-border pt-4">
-                          <div>
-                            <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Card Details</label>
-                            <input type="text" value={paymentDetails.cardNumber} onChange={e => setPaymentDetails({...paymentDetails, cardNumber: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Expiry Date</label>
-                              <input type="text" value={paymentDetails.expiry} onChange={e => setPaymentDetails({...paymentDetails, expiry: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                            </div>
-                            <div>
-                              <label className="text-xs font-semibold text-theme-muted mb-1.5 block">CVV</label>
-                              <input type="text" value={paymentDetails.cvv} onChange={e => setPaymentDetails({...paymentDetails, cvv: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-xs font-semibold text-theme-muted mb-1.5 block">Cardholder Name</label>
-                            <input type="text" value={paymentDetails.cardholder} onChange={e => setPaymentDetails({...paymentDetails, cardholder: e.target.value})} className="w-full bg-theme-main border border-theme-border rounded-xl px-4 py-2 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <button 
-                      onClick={handleConfirm} 
-                      disabled={isSubmitting}
-                      className="mt-6 w-full py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-colors active:scale-95 shadow-md"
-                    >
-                      {isSubmitting ? 'Processing...' : 'Confirm Booking'}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Step 6: Confirmation */}
-            {step === 6 && bookingResult && (
+            {/* Step 4: Confirmation */}
+            {step === 4 && bookingResult && (
               <div className="w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20 mb-6">
+                <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20 mb-4">
                   <Check size={32} className="text-green-500" />
                 </div>
-                <h3 className="text-xl font-bold text-theme-text mb-2">Booking Confirmed!</h3>
-                <p className="text-sm text-theme-muted mb-6">Your booking has been successfully created.</p>
-                
-                <div className="w-full bg-theme-main border border-theme-border rounded-xl p-4 mb-8">
-                  <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-1">Booking ID</p>
-                  <p className="text-lg font-mono font-bold text-theme-text">{bookingResult.id.substring(0, 13).toUpperCase()}</p>
+                <h3 className="text-xl font-bold text-theme-text mb-1">Booking Created!</h3>
+                <p className="text-sm text-theme-muted mb-6">The reservation has been successfully created.</p>
+
+                <div className="w-full bg-theme-main border border-theme-border rounded-xl p-4 mb-3 text-left space-y-3">
+                  <div>
+                    <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Booking ID</p>
+                    <p className="text-sm font-mono font-bold text-theme-text">{bookingResult.id?.substring(0, 13).toUpperCase()}</p>
+                  </div>
+                  <div className="h-px bg-theme-border"></div>
+                  <div>
+                    <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Room Assigned</p>
+                    <p className="text-sm font-semibold text-theme-text">
+                      Room {bookingResult.room?.number || selectedRoom?.number} — {bookingResult.room?.roomType?.name || selectedRoom?.roomType?.name}
+                    </p>
+                  </div>
+                  <div className="h-px bg-theme-border"></div>
+                  <div>
+                    <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Booking Status</p>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                      bookingResult.status === 'CHECKED_IN'
+                        ? 'bg-green-500/10 text-green-600 border-green-500/20'
+                        : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${bookingResult.status === 'CHECKED_IN' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                      {bookingResult.status === 'CHECKED_IN' ? 'Checked In' : 'Reserved'}
+                    </span>
+                  </div>
+                  <div className="h-px bg-theme-border"></div>
+                  <div className="text-[11px] text-theme-muted-light">
+                    <span className="font-semibold">Check-In:</span> {stayDetails.checkIn} &nbsp;|&nbsp; <span className="font-semibold">Check-Out:</span> {stayDetails.checkOut}
+                  </div>
+                  <div className="mt-1 pt-2 border-t border-theme-border/60">
+                    <p className="text-[10px] text-theme-muted-light italic">💳 Payment will be collected at Check-Out based on accumulated charges.</p>
+                  </div>
                 </div>
 
-                <div className="w-full flex flex-col gap-3">
-                  <button onClick={() => { onClose?.(); window.location.href = '/billing'; }} className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition-colors active:scale-95 shadow-md">
-                    View Billing
-                  </button>
-                  <button onClick={onClose} className="w-full py-3 bg-theme-hover hover:bg-theme-hover text-theme-text font-medium rounded-xl transition-colors">
-                    Done
-                  </button>
-                </div>
+                <button onClick={onClose} className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition-colors active:scale-95 shadow-md mt-2">
+                  Done
+                </button>
               </div>
             )}
           </div>

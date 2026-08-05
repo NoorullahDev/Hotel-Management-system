@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import RoomsFilterBar from './_components/RoomsFilterBar';
 import RoomsSummary from './_components/RoomsSummary';
 import RoomGrid from './_components/RoomGrid';
@@ -8,6 +9,7 @@ import SlideOverDetails from './_components/SlideOverDetails';
 import AddRoomModal from './_components/AddRoomModal';
 
 export default function RoomsPage() {
+  const searchParams = useSearchParams();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -16,6 +18,15 @@ export default function RoomsPage() {
     floor: 'All Floors',
     price: 'All Prices'
   });
+
+  // Read search query from URL (set by the top-bar search on this page)
+  const [search, setSearch] = useState(searchParams?.get('search') || '');
+
+  // Sync search state when URL param changes (e.g. after pressing Enter in header search)
+  useEffect(() => {
+    const s = searchParams?.get('search') || '';
+    setSearch(s);
+  }, [searchParams]);
 
   return (
     <div className="flex flex-col gap-6 pb-8 relative">
@@ -34,7 +45,8 @@ export default function RoomsPage() {
       <RoomsSummary filters={filters} />
       
       <RoomGrid 
-        filters={filters} 
+        filters={filters}
+        search={search}
         onSelectRoom={(id) => setSelectedRoomId(id)} 
       />
 

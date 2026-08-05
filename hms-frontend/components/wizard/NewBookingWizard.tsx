@@ -230,11 +230,10 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
 
           <div className="flex-1 flex overflow-x-auto snap-x snap-mandatory gap-6 pb-4">
             
-            {/* Step 1 & 2: Guest & Stay Details */}
-            {(step === 1 || step === 2) && (
-              <>
-                <div className="w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
-                  <h3 className="text-lg font-bold text-theme-text mb-6">Guest Details</h3>
+            {/* Step 1: Guest Details */}
+            {step === 1 && (
+              <div className="w-full max-w-lg mx-auto flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
+                <h3 className="text-lg font-bold text-theme-text mb-6">Guest Details</h3>
                   <div className="space-y-4 flex-1">
                     
                     <div className="relative">
@@ -400,8 +399,11 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     </button>
                   )}
                 </div>
+            )}
 
-                <div className={`w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col ${step === 1 ? 'opacity-50 pointer-events-none' : ''}`}>
+            {/* Step 2: Stay Details */}
+            {step === 2 && (
+                <div className="w-full max-w-lg mx-auto flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
                   <h3 className="text-lg font-bold text-theme-text mb-6">Stay Details</h3>
                   <div className="space-y-4 flex-1">
                     <div className="grid grid-cols-2 gap-4">
@@ -454,12 +456,11 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     </button>
                   )}
                 </div>
-              </>
             )}
 
             {/* Step 3: Room Selection */}
             {step === 3 && (
-              <div className="w-full max-w-lg flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
+              <div className="w-full max-w-lg mx-auto flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col">
                 <h3 className="text-lg font-bold text-theme-text mb-6">Room Selection</h3>
                 <div className="flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
                   {availableRooms.length === 0 ? (
@@ -527,7 +528,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
 
             {/* Step 4: Confirmation */}
             {step === 4 && bookingResult && (
-              <div className="w-full max-w-sm flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+              <div className="w-full max-w-lg mx-auto flex-shrink-0 snap-center bg-theme-secondary border border-theme-border rounded-2xl p-6 flex flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/20 mb-4">
                   <Check size={32} className="text-green-500" />
                 </div>

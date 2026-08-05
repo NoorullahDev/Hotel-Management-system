@@ -26,8 +26,10 @@ export default function BillingPage() {
   
   const [kpiData, setKpiData] = useState({
     totalRevenue: 0,
+    dailyRevenue: 0,
+    monthlyRevenue: 0,
+    yearlyRevenue: 0,
     pendingPayments: 0,
-    outstandingBalance: 0,
     totalInvoices: 0,
     paidBills: 0
   });
@@ -45,20 +47,16 @@ export default function BillingPage() {
       const json = await api.get<{ data: any[], stats: any }>(`/api/bookings?${params}`);
       
       const data = json.data || [];
-      const stats = json.stats || {
-        totalRevenue: 0,
-        pendingPayments: 0,
-        outstandingBalance: 0,
-        totalInvoices: 0,
-        paidBills: 0
-      };
+      const stats = json.stats || {};
 
       setKpiData({
-         totalRevenue: stats.totalRevenue,
-         pendingPayments: stats.pendingPayments,
-         outstandingBalance: stats.outstandingBalance,
-         totalInvoices: stats.totalInvoices,
-         paidBills: stats.paidBills
+         totalRevenue: stats.totalRevenue || 0,
+         dailyRevenue: stats.dailyRevenue || 0,
+         monthlyRevenue: stats.monthlyRevenue || 0,
+         yearlyRevenue: stats.yearlyRevenue || 0,
+         pendingPayments: stats.pendingPayments || 0,
+         totalInvoices: stats.totalInvoices || 0,
+         paidBills: stats.paidBills || 0
       });
 
       // Show ALL bookings for full historical access (CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED)
@@ -188,11 +186,11 @@ export default function BillingPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {[
-          { title: 'Total Revenue', value: `${currencySymbol} ${kpiData.totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Lifetime', icon: Banknote, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { title: 'Pending Payments', value: `${currencySymbol} ${kpiData.pendingPayments.toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Unpaid Invoices', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-          { title: 'Outstanding Balance', value: `${currencySymbol} ${kpiData.outstandingBalance.toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Total Due', icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
-          { title: 'Total Invoices', value: kpiData.totalInvoices.toString(), sub: 'Generated', icon: FileText, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-          { title: 'Paid Bills', value: `${currencySymbol} ${kpiData.paidBills.toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Lifetime', icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
+          { title: 'Daily Revenue', value: `${currencySymbol} ${(kpiData.dailyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Today', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { title: 'Monthly Revenue', value: `${currencySymbol} ${(kpiData.monthlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'This Month', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+          { title: 'Yearly Revenue', value: `${currencySymbol} ${(kpiData.yearlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'This Year', icon: Landmark, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+          { title: 'Pending Payments', value: `${currencySymbol} ${(kpiData.pendingPayments || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'In-House Guests', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+          { title: 'Paid Bills', value: `${currencySymbol} ${(kpiData.paidBills || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Lifetime Total', icon: CheckCircle2, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
         ].map((kpi, i) => (
           <div key={i} className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -316,10 +314,10 @@ export default function BillingPage() {
                   <span className="text-2xl font-bold text-theme-text mb-2">
                      {currencySymbol} {
                        revenueView === 'Daily' 
-                         ? (kpiData.totalRevenue / 30).toLocaleString(undefined, {minimumFractionDigits: 2})
+                         ? ((kpiData.totalRevenue || 0) / 30).toLocaleString(undefined, {minimumFractionDigits: 2})
                          : revenueView === 'Weekly'
-                         ? (kpiData.totalRevenue / 4).toLocaleString(undefined, {minimumFractionDigits: 2})
-                         : kpiData.totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2})
+                         ? ((kpiData.totalRevenue || 0) / 4).toLocaleString(undefined, {minimumFractionDigits: 2})
+                         : (kpiData.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
                      }
                   </span>
                   <p className="text-xs text-theme-muted-light mt-2">Check the Reports & Analytics tab for detailed breakdowns.</p>
@@ -328,7 +326,7 @@ export default function BillingPage() {
                 {/* Simplified Yearly Bar Chart Mock */}
                 <div className="flex flex-col justify-center">
                   <span className="text-xs text-theme-muted">Lifetime Revenue</span>
-                  <span className="text-2xl font-bold text-theme-text mb-2">{currencySymbol} {kpiData.totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                  <span className="text-2xl font-bold text-theme-text mb-2">{currencySymbol} {(kpiData.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                   <p className="text-xs text-theme-muted-light mt-2">Total revenue collected from all past bookings.</p>
                 </div>
               </div>

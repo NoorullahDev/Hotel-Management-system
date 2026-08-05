@@ -11,10 +11,11 @@ import { api } from '@/lib/api';
 
 interface Props {
   filters: any;
+  search?: string;
   onSelectRoom: (id: string) => void;
 }
 
-export default function RoomGrid({ filters, onSelectRoom }: Props) {
+export default function RoomGrid({ filters, search = '', onSelectRoom }: Props) {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState('Room Number');
   const [statusMenuOpen, setStatusMenuOpen] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function RoomGrid({ filters, onSelectRoom }: Props) {
       ...(filters.roomType !== 'All Types' && { roomTypeId: filters.roomType }),
       ...(filters.status !== 'All Status' && { status: filters.status }),
       ...(filters.floor !== 'All Floors' && { floor: filters.floor }),
+      ...(search.trim() && { search: search.trim() }),
     });
 
     return api.get<any>(`/api/rooms?${queryParams}`);
@@ -36,7 +38,7 @@ export default function RoomGrid({ filters, onSelectRoom }: Props) {
 
   const queryClient = useQueryClient();
   const { data } = useQuery({
-    queryKey: ['roomsList', filters, page],
+    queryKey: ['roomsList', filters, search, page],
     queryFn: fetchRooms
   });
 
@@ -44,7 +46,7 @@ export default function RoomGrid({ filters, onSelectRoom }: Props) {
     const socket = connectSocket();
 
     const handleRoomStatusChanged = (eventData: { roomId: string, newStatus: string }) => {
-      queryClient.setQueryData(['roomsList', filters, page], (oldData: any) => {
+      queryClient.setQueryData(['roomsList', filters, search, page], (oldData: any) => {
         if (!oldData || !oldData.data) return oldData;
         
         return {
@@ -64,14 +66,14 @@ export default function RoomGrid({ filters, onSelectRoom }: Props) {
     return () => {
       socket.off('room:status_changed', handleRoomStatusChanged);
     };
-  }, [queryClient, filters, page]);
+  }, [queryClient, filters, search, page]);
 
   const handleStatusChange = async (roomId: string, newStatus: string) => {
     // Close menu immediately for snappy UX
     setStatusMenuOpen(null);
 
     // 1. OPTIMISTIC UPDATE — change the room in the cache right now, zero delay
-    queryClient.setQueryData(['roomsList', filters, page], (oldData: any) => {
+    queryClient.setQueryData(['roomsList', filters, search, page], (oldData: any) => {
       if (!oldData?.data) return oldData;
       return {
         ...oldData,
@@ -86,7 +88,7 @@ export default function RoomGrid({ filters, onSelectRoom }: Props) {
       if (!oldData?.stats) return oldData;
       const stats = { ...oldData.stats };
       // Find old status from current data
-      const currentRoom = queryClient.getQueryData<any>(['roomsList', filters, page])?.data?.find((r: any) => r.id === roomId);
+      const currentRoom = queryClient.getQueryData<any>(['roomsList', filters, search, page])?.data?.find((r: any) => r.id === roomId);
       const oldStatus = currentRoom?.status?.toLowerCase();
       if (oldStatus && stats[oldStatus] !== undefined) stats[oldStatus] = Math.max(0, stats[oldStatus] - 1);
       const ns = newStatus.toLowerCase();

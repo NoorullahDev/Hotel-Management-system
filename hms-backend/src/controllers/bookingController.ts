@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 const { Decimal } = Prisma;
 import { generateInvoice, computeInvoiceLineItems } from '../services/billing.service';
 import { getPagination, buildMeta } from '../utils/pagination';
+import { emitToHotel } from '../socket';
 
 export const getBookings = asyncHandler(async (req: Request, res: Response) => {
     const {
@@ -48,7 +49,13 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
       ];
     }
 
-    const [bookings, total, statGroups] = await Promise.all([
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const [bookings, total, statGroups, dailyPaymentAggr, monthlyPaymentAggr, yearlyPaymentAggr] = await Promise.all([
       prisma.booking.findMany({
         where,
         take: limit,
@@ -65,6 +72,18 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
         where,
         _count: { _all: true },
         _sum: { total: true }
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: startOfDay } }
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: startOfMonth } }
+      }),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { createdAt: { gte: startOfYear } }
       })
     ]);
 
@@ -89,10 +108,16 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
       }
     });
 
+    const dailyRevenue = dailyPaymentAggr._sum.amount ? dailyPaymentAggr._sum.amount.toNumber() : 0;
+    const monthlyRevenue = monthlyPaymentAggr._sum.amount ? monthlyPaymentAggr._sum.amount.toNumber() : 0;
+    const yearlyRevenue = yearlyPaymentAggr._sum.amount ? yearlyPaymentAggr._sum.amount.toNumber() : 0;
+
     const stats = {
       totalRevenue: totalRev,
+      dailyRevenue,
+      monthlyRevenue,
+      yearlyRevenue,
       pendingPayments: pendingPay,
-      outstandingBalance: pendingPay,
       totalInvoices: invoices,
       paidBills: paid
     };
@@ -299,8 +324,13 @@ export const cancelBooking = asyncHandler(async (req: AuthRequest, res: Response
         });
       }
 
-      return updated;
+      return { updated, roomWasReserved: room?.status === 'RESERVED' };
     });
+
+    // Emit real-time room availability update if room was reverted to AVAILABLE
+    if (updatedBooking.roomWasReserved) {
+      emitToHotel('main', 'room:status_changed', { roomId: booking.roomId, newStatus: 'AVAILABLE' });
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -311,7 +341,7 @@ export const cancelBooking = asyncHandler(async (req: AuthRequest, res: Response
       }
     });
 
-    res.json(updatedBooking);
+    res.json(updatedBooking.updated);
   });
 
 export const deleteBooking = asyncHandler(async (req: AuthRequest, res: Response) => {

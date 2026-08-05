@@ -268,19 +268,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Menu size={24} />
             </button>
-            <div className="relative w-full max-w-md hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search guests, bookings, rooms..." 
-                className="w-full bg-theme-card shadow-soft border border-theme-border rounded-xl py-2 pl-10 pr-4 text-sm text-theme-text placeholder-theme-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-blue-500 transition-all"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    router.push(`/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`);
-                  }
-                }}
-              />
-            </div>
+            {pathname === '/dashboard' && (
+              <div className="relative w-full max-w-md hidden sm:block">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Search guests, bookings, rooms..." 
+                  className="w-full bg-theme-card shadow-soft border border-theme-border rounded-xl py-2 pl-10 pr-4 text-sm text-theme-text placeholder-theme-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-blue-500 transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                      router.push(`/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`);
+                    }
+                  }}
+                />
+              </div>
+            )}
+            {pathname === '/rooms' && (
+              <div className="relative w-full max-w-md hidden sm:block">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Search by room number or type..."
+                  className="w-full bg-theme-card shadow-soft border border-theme-border rounded-xl py-2 pl-10 pr-4 text-sm text-theme-text placeholder-theme-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-blue-500 transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                      router.push(`/rooms?search=${encodeURIComponent(e.currentTarget.value.trim())}`);
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-6">

@@ -49,7 +49,7 @@ export const getRoomsAvailability = asyncHandler(async (req: Request, res: Respo
     }
 
     const where: any = {
-      status: { notIn: ['MAINTENANCE'] }, // Allow any room not in maintenance, as long as there is no overlapping booking
+      status: { notIn: ['MAINTENANCE', 'RESERVED', 'OCCUPIED'] }, // Only truly available rooms (not reserved, occupied, or in maintenance)
       bookings: {
         none: {
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },

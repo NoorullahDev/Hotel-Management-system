@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChefHat, Search, Bell, Plus, Clock, CheckCircle, Flame } from 'lucide-react';
+import { ChefHat, Search, Plus, Clock, CheckCircle, Flame } from 'lucide-react';
 import OrderCard from './OrderCard';
 import OrderDetailsSidebar from './OrderDetailsSidebar';
 import NewOrderModal from './NewOrderModal';
@@ -108,10 +108,6 @@ export default function RestaurantBoard() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button className="relative text-theme-muted hover:text-theme-text transition-colors">
-            <Bell size={20} />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-theme-border"></span>
-          </button>
           <button 
             onClick={() => setIsNewOrderModalOpen(true)}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium text-sm active:scale-95 shadow-md"

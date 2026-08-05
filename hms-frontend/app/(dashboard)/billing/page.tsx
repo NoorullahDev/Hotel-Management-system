@@ -314,10 +314,10 @@ export default function BillingPage() {
                   <span className="text-2xl font-bold text-theme-text mb-2">
                      {currencySymbol} {
                        revenueView === 'Daily' 
-                         ? ((kpiData.totalRevenue || 0) / 30).toLocaleString(undefined, {minimumFractionDigits: 2})
+                         ? (kpiData.dailyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
                          : revenueView === 'Weekly'
-                         ? ((kpiData.totalRevenue || 0) / 4).toLocaleString(undefined, {minimumFractionDigits: 2})
-                         : (kpiData.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
+                         ? (kpiData.monthlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
+                         : (kpiData.yearlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
                      }
                   </span>
                   <p className="text-xs text-theme-muted-light mt-2">Check the Reports & Analytics tab for detailed breakdowns.</p>

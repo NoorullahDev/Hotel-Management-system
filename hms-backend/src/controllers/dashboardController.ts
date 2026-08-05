@@ -56,7 +56,9 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
     const reservedRooms = byStatus['RESERVED'] || 0;
 
     const occupancyRate = totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : "0.0";
-    const revenue = todayPayments._sum.amount ? todayPayments._sum.amount.toNumber() : 0;
+    
+    const lifetimePayments = await prisma.payment.aggregate({ _sum: { amount: true } });
+    const revenue = lifetimePayments._sum.amount ? lifetimePayments._sum.amount.toNumber() : 0;
     const yRevenue = yPayments._sum.amount ? yPayments._sum.amount.toNumber() : 0;
 
     const calcDelta = (today: number, yesterday: number, isPercent = false) => {
@@ -99,7 +101,12 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
       checkIns: { value: checkIns.toString(), ...calcDelta(checkIns, yCheckIns) },
       checkOuts: { value: checkOuts.toString(), ...calcDelta(checkOuts, yCheckOuts) },
       occupancy: { value: `${occupancyRate}%`, ...calcDeltaPct(Number(occupancyRate), yOccupancyRate) },
-      revenue: { value: `${settings.currencySymbol} ${revenue.toLocaleString()}`, ...calcDelta(revenue, yRevenue) },
+      revenue: { 
+        value: `${settings.currencySymbol} ${revenue.toLocaleString(undefined, {minimumFractionDigits: 2})}`, 
+        delta: '', 
+        isPositive: true,
+        subtitle: 'Lifetime'
+      },
       available: { value: availableRooms.toString(), ...availableDelta },
       reserved: { value: reservedRooms.toString(), ...calcRawDelta(reservedRooms, reservedRooms) }, // Hard to calculate historically without status logs
     });

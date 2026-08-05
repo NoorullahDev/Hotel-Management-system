@@ -227,31 +227,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Bottom Actions & Widget */}
-        <div className="shrink-0 p-4 border-t border-theme-border flex flex-col gap-3 bg-theme-card">
-          <div className="bg-theme-main rounded-xl p-3 flex flex-col gap-2 border border-theme-border/60">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-                <MapPin size={16} className="text-blue-500" />
+        <div className="mt-auto shrink-0 p-3 flex flex-col gap-1 border-t border-theme-border">
+          <div className="bg-theme-main rounded-lg p-2 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+                <MapPin size={12} className="text-blue-500" />
               </div>
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-bold text-theme-text truncate">{user.name}</span>
-                <span className="text-[11px] font-semibold text-theme-muted-light truncate leading-tight mt-0.5">{hotelName}</span>
+                <span className="text-[11px] font-bold text-theme-text truncate leading-tight">{user.name}</span>
+                <span className="text-[9px] font-semibold text-theme-muted-light truncate leading-tight">{hotelName}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-1 border-t border-theme-border/60 pt-3 mt-1">
-              <span className="text-[11px] font-medium text-theme-muted uppercase tracking-wider">{formatDate(currentTime)}</span>
-              <span className="text-sm font-bold text-theme-text">{formatTime(currentTime)}</span>
+            <div className="flex items-center justify-between pt-1 border-t border-theme-border/50">
+              <span className="text-[9px] font-medium text-theme-muted uppercase tracking-wider">{formatDate(currentTime)}</span>
+              <span className="text-[10px] font-bold text-theme-text">{formatTime(currentTime)}</span>
             </div>
           </div>
 
           <button 
             onClick={() => setShowLogoutModal(true)}
-            className="flex items-center gap-3 px-3 h-11 rounded-xl text-red-500 hover:bg-red-500/10 transition-colors duration-200 ease-in-out w-full font-medium"
+            className="flex items-center gap-2 px-3 h-8 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors duration-200 ease-in-out w-full font-medium"
           >
             <div className="flex items-center justify-center">
-              <Power size={20} strokeWidth={2} />
+              <Power size={14} strokeWidth={2} />
             </div>
-            <span className="text-[15px] tracking-wide">Logout</span>
+            <span className="text-xs tracking-wide">Logout</span>
           </button>
         </div>
       </aside>

@@ -17,7 +17,7 @@ export const createBookingService = async (bookingData: any) => {
     // 2. Write to room early to acquire write lock, preventing concurrent overlap race conditions
     await tx.room.update({
       where: { id: bookingData.roomId },
-      data: { status: 'RESERVED' }
+      data: { status: 'OCCUPIED' }
     });
 
     // 3. Check for overlapping bookings
@@ -46,7 +46,7 @@ export const createBookingService = async (bookingData: any) => {
     return booking;
   }, { isolationLevel: 'Serializable' });
 
-  emitToHotel('main', 'room:status_changed', { roomId: bookingData.roomId, newStatus: 'RESERVED' });
+  emitToHotel('main', 'room:status_changed', { roomId: bookingData.roomId, newStatus: 'OCCUPIED' });
 
   // Emit real-time event
   const checkInStr = newBooking.checkIn.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

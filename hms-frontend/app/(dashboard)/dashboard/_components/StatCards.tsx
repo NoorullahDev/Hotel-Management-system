@@ -59,6 +59,7 @@ export default function StatCards() {
       value: data.revenue.value,
       change: data.revenue.delta,
       isPositive: data.revenue.isPositive,
+      subtitle: data.revenue.subtitle,
       icon: CircleDollarSign,
       iconColor: "text-white",
       iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20"
@@ -85,7 +86,7 @@ export default function StatCards() {
     { title: "Today's Check-ins", value: '—', change: '0', isPositive: true, icon: LogIn, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#0066FF] to-[#0052CC] shadow-lg shadow-[#0066FF]/20" },
     { title: "Today's Check-outs", value: '—', change: '0', isPositive: true, icon: LogOut, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#8A2BE2] to-[#6A1B9A] shadow-lg shadow-[#8A2BE2]/20" },
     { title: "Occupancy Rate", value: '—', change: '0%', isPositive: true, icon: PieChart, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#00C4B5] to-[#009688] shadow-lg shadow-[#00C4B5]/20" },
-    { title: "Total Revenue", value: '—', change: '0', isPositive: true, icon: CircleDollarSign, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20" },
+    { title: "Total Revenue", value: '—', change: '', subtitle: 'Lifetime', isPositive: true, icon: CircleDollarSign, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#F5A623] to-[#D48806] shadow-lg shadow-[#F5A623]/20" },
     { title: "Available Rooms", value: '—', change: '0', isPositive: true, icon: BedDouble, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#10B981] to-[#059669] shadow-lg shadow-[#10B981]/20" },
     { title: "Reserved Rooms", value: '—', change: '0', isPositive: true, icon: Bookmark, iconColor: "text-white", iconBg: "bg-gradient-to-br from-[#3B82F6] to-[#2563EB] shadow-lg shadow-[#3B82F6]/20" },
   ];
@@ -103,11 +104,13 @@ export default function StatCards() {
             <h3 className="text-2xl xl:text-3xl font-bold text-theme-text mb-1">{stat.value}</h3>
             <p className="text-theme-muted text-xs xl:text-sm font-medium mb-3">{stat.title}</p>
             <div className="flex items-center gap-1.5 text-xs">
-              <span className={`flex items-center font-medium ${stat.isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                {stat.isPositive ? <ArrowUp size={12} className="mr-0.5" /> : <ArrowDown size={12} className="mr-0.5" />}
-                {stat.change}
-              </span>
-              <span className="text-theme-muted-light">vs yesterday</span>
+              {(stat as any).change ? (
+                <span className={`flex items-center font-medium ${stat.isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {stat.isPositive ? <ArrowUp size={12} className="mr-0.5" /> : <ArrowDown size={12} className="mr-0.5" />}
+                  {(stat as any).change}
+                </span>
+              ) : null}
+              <span className="text-theme-muted-light">{(stat as any).subtitle || "vs yesterday"}</span>
             </div>
           </div>
         </div>

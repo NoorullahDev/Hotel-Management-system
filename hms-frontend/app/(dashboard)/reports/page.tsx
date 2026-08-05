@@ -34,6 +34,8 @@ import { api } from "@/lib/api";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
+import TopPDFTemplate from "./_components/TopPDFTemplate";
+import BottomPDFTemplate from "./_components/BottomPDFTemplate";
 
 const API = "/api/reports";
 
@@ -368,6 +370,11 @@ export default function ReportsPage() {
   const [showRevTable, setShowRevTable] = useState(false);
   const [showOccTable, setShowOccTable] = useState(false);
 
+  // PDF Export States
+  const [exportViewAll, setExportViewAll] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [roomStatusStateForPDF, setRoomStatusStateForPDF] = useState({ available: 0, occupied: 0, reserved: 0, outOfOrder: 0, total: 0 });
+
   const qs = `?startDate=${range.start}&endDate=${range.end}`;
 
   const fetchAll = useCallback(() => {
@@ -448,205 +455,151 @@ export default function ReportsPage() {
   };
 
   const generatePDF = async () => {
+    setExportingPDF(true);
     try {
-      const doc = new jsPDF('p', 'mm', 'a4');
+      const doc = new jsPDF("p", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      
-      const themeColor: [number, number, number] = [79, 70, 229]; // Indigo
-      
-      // ─── Header Section ──────────────────────────────────────────
-      doc.setFontSize(24);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(30, 41, 59);
-      doc.text(hotelName, pageWidth / 2, 22, { align: 'center' });
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100);
-      doc.text(hotelAddress, pageWidth / 2, 30, { align: 'center' });
-      if (contactNumber || email) {
-        doc.text([contactNumber && `Phone: ${contactNumber}`, email && `Email: ${email}`].filter(Boolean).join(' | '), pageWidth / 2, 36, { align: 'center' });
-      }
-      
-      // Separator Line
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.5);
-      doc.line(14, 42, pageWidth - 14, 42);
 
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(15, 23, 42);
-      doc.text("Comprehensive Performance Report", 14, 52);
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(100);
-      doc.text(`Period: ${range.start} to ${range.end}`, 14, 58);
-      
-      const generatedDate = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-      doc.text(`Generated on: ${generatedDate}`, 14, 63);
-      
-      let currentY = 75;
-
-      // ─── 1. KPI Summary Section ─────────────────────────────────
-      doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(15, 23, 42);
-      doc.text("Key Performance Indicators", 14, currentY);
-      currentY += 6;
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Total Revenue', 'Occupancy Rate', 'Total Bookings', 'Avg Length of Stay', 'Guest Satisfaction']],
-        body: [[
-          formatCurrency(summary?.totalRevenue ?? 0, currencySymbol),
-          `${summary?.occupancyRate ?? 0}%`,
-          String(summary?.totalBookings ?? 0),
-          `${summary?.avgLOS ?? 0} Nights`,
-          `${summary?.guestSatisfaction ?? 0} / 5`
-        ]],
-        theme: 'grid',
-        headStyles: { fillColor: themeColor, textColor: 255, fontStyle: 'bold', halign: 'center' },
-        bodyStyles: { fontStyle: 'bold', halign: 'center', fontSize: 11, textColor: [30, 41, 59] },
-        margin: { top: 20 },
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-
-      // ─── Helper for adding section titles ────────────────────────
-      const addSectionTitle = (title: string) => {
-        if (currentY > pageHeight - 30) {
-          doc.addPage();
-          currentY = 20;
+      // 1. Fetch recent bookings for PDF
+      let fetchedBookings: any[] = [];
+      try {
+        const res = await api.get<{ data: any[] }>(`/api/bookings?limit=${exportViewAll ? 10000 : 10}`);
+        if (res && res.data) {
+          fetchedBookings = res.data;
         }
-        doc.setFontSize(14);
+      } catch (e) {
+        console.error("Failed to fetch bookings for PDF", e);
+      }
+
+      // 2. Fetch room status for Bottom template
+      let roomStatusState = { available: 0, occupied: 0, reserved: 0, outOfOrder: 0, total: 0 };
+      try {
+        const res = await api.get<any>(`/api/rooms`);
+        if (res && res.data) {
+          const rooms = res.data;
+          roomStatusState.total = rooms.length;
+          roomStatusState.available = rooms.filter((r: any) => r.status === "AVAILABLE").length;
+          roomStatusState.occupied = rooms.filter((r: any) => r.status === "OCCUPIED").length;
+          roomStatusState.reserved = rooms.filter((r: any) => r.status === "RESERVED").length;
+          roomStatusState.outOfOrder = rooms.filter((r: any) => r.status === "MAINTENANCE").length;
+        }
+      } catch (e) {
+        console.error("Failed to fetch rooms for PDF", e);
+      }
+
+      // 3. Render and capture Top Template
+      const topEl = document.getElementById("pdf-top-template");
+      if (topEl) {
+        const canvas = await html2canvas(topEl, { scale: 2, useCORS: true, logging: false });
+        const imgData = canvas.toDataURL("image/jpeg", 1.0);
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = pageWidth;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        doc.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+
+        let currentY = pdfHeight + 5; // Start autoTable below Top template
+
+        // 4. Draw Tables
+        doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(15, 23, 42);
-        doc.text(title, 14, currentY);
-        currentY += 6;
-      };
-
-      // ─── 2. Detailed Daily Revenue Breakdown ──────────────────────
-      addSectionTitle("Detailed Daily Revenue Breakdown");
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Date', 'Rooms Revenue', 'Restaurant Revenue', 'Other Revenue', 'Total']],
-        body: revTable?.rows?.map((r: any) => [r.date, formatCurrency(r.roomsRevenue, currencySymbol), formatCurrency(r.restaurantRevenue, currencySymbol), formatCurrency(r.otherRevenue, currencySymbol), formatCurrency(r.total, currencySymbol)]) || [],
-        foot: revTable?.totals ? [['Total', formatCurrency(revTable.totals.roomsRevenue, currencySymbol), formatCurrency(revTable.totals.restaurantRevenue, currencySymbol), formatCurrency(revTable.totals.otherRevenue, currencySymbol), formatCurrency(revTable.totals.total, currencySymbol)]] : [],
-        theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-        footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
-        margin: { top: 20 },
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-
-      // ─── 3. Occupancy Breakdown ──────────────────────────────────
-      addSectionTitle("Occupancy Breakdown");
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Date', 'Occupied', 'Available', 'Reserved', 'Occupancy %']],
-        body: occupancy?.table?.map((r: any) => [r.date, r.occupied, r.available, r.reserved, `${r.occupancyPct}%`]) || [],
-        foot: occupancy?.table?.length ? [['Total / Avg', String(occupancy.table.reduce((a:number,r:any)=>a+r.occupied,0)), String(occupancy.table.reduce((a:number,r:any)=>a+r.available,0)), String(occupancy.table.reduce((a:number,r:any)=>a+r.reserved,0)), `${occupancy?.occupancyRate}%`]] : [],
-        theme: 'grid',
-        headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-        footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
-        margin: { top: 20 },
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 15;
-
-      // ─── 4. Bookings Overview ────────────────────────────────────
-      if (bookings && bookings.length > 0) {
-        addSectionTitle("Bookings Overview");
+        doc.text("REVENUE SUMMARY", 14, currentY);
+        
+        const revSumBody: any[] = [];
+        if (revByDept && revByDept.data) {
+           revByDept.data.forEach((d: any) => revSumBody.push([d.name, formatCurrency(d.value, currencySymbol)]));
+        }
+        
         autoTable(doc, {
-          startY: currentY,
-          head: [['Date', 'Number of Bookings']],
-          body: bookings.map((b: any) => [b.name, String(b.bookings)]),
-          foot: [['Total', String(bookings.reduce((a:number,b:any) => a + b.bookings, 0))]],
+          startY: currentY + 4,
+          head: [['Item', 'Amount (Rs.)']],
+          body: revSumBody,
+          foot: [['Total Revenue', formatCurrency(revByDept?.total || 0, currencySymbol)]],
           theme: 'grid',
           headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
+          footStyles: { fillColor: [246, 248, 250], textColor: [79, 70, 229], fontStyle: 'bold' },
           margin: { top: 20 },
         });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
-      }
 
-      // ─── 5. Restaurant Sales ────────────────────────────────────
-      if (restaurant && restaurant.length > 0) {
-        addSectionTitle("Restaurant Sales");
+        currentY = (doc as any).lastAutoTable.finalY + 15;
+
+        // Recent Bookings Table
+        if (currentY > pageHeight - 30) {
+            doc.addPage();
+            currentY = 20;
+        }
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text("RECENT BOOKINGS", 14, currentY);
+
+        const formattedBookings = fetchedBookings.map(b => [
+           b.guest?.name || 'Unknown',
+           b.room?.number || 'N/A',
+           new Date(b.checkIn).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+           new Date(b.checkOut).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+           b.status === 'CHECKED_IN' ? 'Checked In' : b.status === 'RESERVED' ? 'Reserved' : b.status === 'CONFIRMED' ? 'Confirmed' : b.status === 'CHECKED_OUT' ? 'Checked Out' : b.status
+        ]);
+
         autoTable(doc, {
-          startY: currentY,
-          head: [['Date', 'Orders', 'Total Sales', 'Food Sales', 'Beverage Sales', 'Avg Order Value', 'Top Item']],
-          body: restaurant.map((r: any) => [
-            r.name, 
-            String(r.orders), 
-            formatCurrency(r.revenue, currencySymbol),
-            formatCurrency(r.foodSales, currencySymbol),
-            formatCurrency(r.beverageSales, currencySymbol),
-            formatCurrency(r.avgOrder, currencySymbol),
-            r.topItem
-          ]),
+          startY: currentY + 4,
+          head: [['Guest Name', 'Room', 'Check-in', 'Check-out', 'Status']],
+          body: formattedBookings,
           theme: 'grid',
           headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
           margin: { top: 20 },
         });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
-      }
 
-      // ─── 6. Department Revenue ──────────────────────────────────
-      if (revByDept && revByDept.data && revByDept.data.length > 0) {
-        addSectionTitle("Revenue by Department");
-        autoTable(doc, {
-          startY: currentY,
-          head: [['Department', 'Revenue']],
-          body: revByDept.data.map((d: any) => [d.name, formatCurrency(d.value, currencySymbol)]),
-          foot: [['Total Revenue', formatCurrency(revByDept.total, currencySymbol)]],
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          margin: { top: 20 },
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
-      }
+        currentY = (doc as any).lastAutoTable.finalY + 10;
 
-      // ─── 7. Staff Performance ───────────────────────────────────
-      if (staffPerf && staffPerf.length > 0) {
-        addSectionTitle("Staff Performance");
-        autoTable(doc, {
-          startY: currentY,
-          head: [['Staff Name', 'Department', 'Tasks Completed', 'Efficiency %', 'Rating']],
-          body: staffPerf.map((s: any) => [s.name, s.department, String(s.tasksCompleted), `${s.efficiency}%`, s.rating]),
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          alternateRowStyles: { fillColor: [250, 250, 250] },
-          margin: { top: 20 },
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 15;
-      }
+        // 5. Render Bottom Template
+        setRoomStatusStateForPDF(roomStatusState);
+        await new Promise(r => setTimeout(r, 300)); // wait for react to render
 
-      // ─── Pagination Footer ──────────────────────────────────────
-      const totalPages = (doc as any).internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`${hotelName} - Performance Report`, 14, pageHeight - 10);
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 10, { align: 'right' });
-      }
+        const bottomEl = document.getElementById("pdf-bottom-template");
+        if (bottomEl) {
+           const bCanvas = await html2canvas(bottomEl, { scale: 2, useCORS: true, logging: false });
+           const bImgData = bCanvas.toDataURL("image/jpeg", 1.0);
+           const bImgProps = doc.getImageProperties(bImgData);
+           const bPdfHeight = (bImgProps.height * pdfWidth) / bImgProps.width;
+           
+           if (currentY + bPdfHeight > pageHeight) {
+              doc.addPage();
+              currentY = 10;
+           }
+           doc.addImage(bImgData, "JPEG", 0, currentY, pdfWidth, bPdfHeight);
+        }
 
-      const pdfOutput = doc.output('arraybuffer');
-      const filename = `report_${range.start}_to_${range.end}.pdf`;
-      
-      if ((window as any).electron?.savePdf) {
-        const success = await (window as any).electron.savePdf(pdfOutput, filename);
-        if (!success) console.log("PDF save cancelled or failed.");
-      } else {
-        doc.save(filename);
+        // ─── Pagination Footer ──────────────────────────────────────
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255); // White text
+          
+          // Draw dark blue footer rect
+          doc.setFillColor(15, 23, 42); 
+          doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
+          
+          doc.text(`Software developed by EagleNest Creation`, 14, pageHeight - 4);
+          doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 4, { align: 'right' });
+        }
+
+        const pdfOutput = doc.output('arraybuffer');
+        const filename = `report_${range.start}_to_${range.end}.pdf`;
+        
+        if ((window as any).electron?.savePdf) {
+          const success = await (window as any).electron.savePdf(pdfOutput, filename);
+          if (!success) console.log("PDF save cancelled or failed.");
+        } else {
+          doc.save(filename);
+        }
       }
     } catch (error) {
       console.error("Error generating PDF:", error);
+    } finally {
+      setExportingPDF(false);
     }
   };
 
@@ -791,12 +744,25 @@ export default function ReportsPage() {
               </p>
             </div>
             {/* Export buttons — hidden on print */}
-            <div className="flex gap-2 flex-wrap print-hide">
+            <div className="flex gap-3 print-hide items-center">
+              <div className="flex items-center gap-2 mr-2">
+                 <input 
+                    type="checkbox" 
+                    id="viewAllBookings" 
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={exportViewAll} 
+                    onChange={(e) => setExportViewAll(e.target.checked)} 
+                 />
+                 <label htmlFor="viewAllBookings" className="text-sm text-theme-muted cursor-pointer">
+                    Include All Bookings
+                 </label>
+              </div>
               <button
                 onClick={generatePDF}
-                className="flex items-center gap-2 px-4 py-2 bg-theme-card shadow-soft border border-theme-border rounded-xl text-theme-muted-light hover:text-theme-text hover:border-theme-border transition-colors text-sm font-medium"
+                disabled={exportingPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-theme-card shadow-soft border border-theme-border rounded-xl text-theme-muted-light hover:text-theme-text hover:border-theme-border transition-colors text-sm font-medium disabled:opacity-50"
               >
-                <FileText size={15} /> Export PDF
+                <FileText size={15} /> {exportingPDF ? "Generating..." : "Export PDF"}
               </button>
               <button
                 onClick={handleExportCSV}
@@ -1566,321 +1532,26 @@ export default function ReportsPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* ── PRINT-ONLY INFORMATIVE REPORT ── */}
-        <div className="hidden print:block w-full text-black">
-          {/* Cover / Header */}
-          <div className="text-center mb-8 border-b-2 border-gray-300 pb-6">
-            <h1 className="text-3xl font-bold mb-2 text-black">{hotelName}</h1>
-            <p className="text-gray-600">{hotelAddress}</p>
-            {(contactNumber || email) && (
-              <p className="text-gray-600 mt-1">
-                {[
-                  contactNumber && `Phone: ${contactNumber}`,
-                  email && `Email: ${email}`,
-                ]
-                  .filter(Boolean)
-                  .join(" | ")}
-              </p>
-            )}
-            <h2 className="text-xl font-semibold mt-6 text-gray-800">
-              Comprehensive Performance Report
-            </h2>
-            <p className="text-sm text-gray-500">
-              Period: {range.start} to {range.end}
-            </p>
-          </div>
+        <TopPDFTemplate 
+           hotelName={hotelName}
+           hotelAddress={hotelAddress}
+           contactNumber={contactNumber}
+           email={email}
+           range={range}
+           department={department}
+           roomType={roomType}
+           revenueCards={revenueCards}
+           occupancy={occupancy}
+           totalBookings={totalBookings}
+           currencySymbol={currencySymbol}
+        />
+        <BottomPDFTemplate 
+           staffPerf={staffPerf}
+           maxTasks={maxTasks}
+           restaurant={restaurant}
+           currencySymbol={currencySymbol}
+        />
 
-          {/* Executive Summary */}
-          <div className="mb-8" style={{ pageBreakInside: "avoid" }}>
-            <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">
-              Executive Summary
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="p-4 border border-gray-300 rounded-lg">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
-                  Total Revenue
-                </div>
-                <div className="text-2xl font-bold text-black mt-1">
-                  {summary
-                    ? formatCurrency(summary.totalRevenue, currencySymbol)
-                    : "PKR 0.00"}
-                </div>
-              </div>
-              <div className="p-4 border border-gray-300 rounded-lg">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
-                  Occupancy Rate
-                </div>
-                <div className="text-2xl font-bold text-black mt-1">
-                  {summary ? `${summary.occupancyRate}%` : "0%"}
-                </div>
-              </div>
-              <div className="p-4 border border-gray-300 rounded-lg">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
-                  Total Bookings
-                </div>
-                <div className="text-2xl font-bold text-black mt-1">
-                  {summary?.totalBookings ?? 0}
-                </div>
-              </div>
-              <div className="p-4 border border-gray-300 rounded-lg">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
-                  Avg Length of Stay
-                </div>
-                <div className="text-2xl font-bold text-black mt-1">
-                  {summary ? `${summary.avgLOS} Nights` : "0 Nights"}
-                </div>
-              </div>
-              <div className="p-4 border border-gray-300 rounded-lg">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider">
-                  Guest Satisfaction
-                </div>
-                <div className="text-2xl font-bold text-black mt-1">
-                  {summary ? `${summary.guestSatisfaction} / 5` : "4.5 / 5"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Revenue Table */}
-          <div className="mb-8" style={{ pageBreakBefore: "always" }}>
-            <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">
-              Detailed Revenue Report
-            </h3>
-            <table className="w-full text-sm text-left border-collapse border border-gray-300">
-              <thead className="bg-gray-100 border-b-2 border-gray-400">
-                <tr>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Date
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Rooms Revenue
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Restaurant Revenue
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Other Revenue
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(revTable?.rows || []).map((r: any, i: number) => (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-200"
-                    style={{ pageBreakInside: "avoid" }}
-                  >
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.date}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.roomsRevenue, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.restaurantRevenue, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.otherRevenue, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 font-bold border border-gray-300 text-black">
-                      {formatCurrency(r.total, currencySymbol)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              {revTable?.totals && (
-                <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
-                  <tr>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      Total
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {formatCurrency(
-                        revTable.totals.roomsRevenue,
-                        currencySymbol,
-                      )}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {formatCurrency(
-                        revTable.totals.restaurantRevenue,
-                        currencySymbol,
-                      )}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {formatCurrency(
-                        revTable.totals.otherRevenue,
-                        currencySymbol,
-                      )}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {formatCurrency(revTable.totals.total, currencySymbol)}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-
-          {/* Occupancy Data */}
-          <div className="mb-8" style={{ pageBreakBefore: "always" }}>
-            <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">
-              Occupancy Report
-            </h3>
-            <table className="w-full text-sm text-left border-collapse border border-gray-300">
-              <thead className="bg-gray-100 border-b-2 border-gray-400">
-                <tr>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Date
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Occupied
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Available
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Reserved
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Occupancy %
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(occupancy?.table || []).map((r: any, i: number) => (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-200"
-                    style={{ pageBreakInside: "avoid" }}
-                  >
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.date}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.occupied}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.available}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.reserved}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.occupancyPct}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              {occTotalRow && (
-                <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
-                  <tr>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      Total / Avg
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(occTotalRow[1])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(occTotalRow[2])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(occTotalRow[3])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {occupancy?.occupancyRate}%
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-
-          {/* Restaurant Data */}
-          <div className="mb-8" style={{ pageBreakBefore: "always" }}>
-            <h3 className="text-lg font-bold border-b border-gray-300 pb-2 mb-4 text-black">
-              Restaurant Report
-            </h3>
-            <table className="w-full text-sm text-left border-collapse border border-gray-300">
-              <thead className="bg-gray-100 border-b-2 border-gray-400">
-                <tr>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Item / Period
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Total Orders
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Total Sales
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Food Sales
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Beverage Sales
-                  </th>
-                  <th className="py-3 px-4 font-bold text-black border border-gray-300">
-                    Avg Order Value
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {restaurant.map((r: any, i: number) => (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-200"
-                    style={{ pageBreakInside: "avoid" }}
-                  >
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.name}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {r.orders}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.revenue, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.foodSales, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.beverageSales, currencySymbol)}
-                    </td>
-                    <td className="py-2 px-4 border border-gray-300 text-black">
-                      {formatCurrency(r.avgOrder, currencySymbol)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              {restTotalRow && (
-                <tfoot className="border-t-2 border-gray-400 bg-gray-100 font-bold">
-                  <tr>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      Total
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(restTotalRow[1])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(restTotalRow[2])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(restTotalRow[3])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(restTotalRow[4])}
-                    </td>
-                    <td className="py-3 px-4 border border-gray-300 text-black">
-                      {String(restTotalRow[5])}
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </div>
       </div>
     </>
   );

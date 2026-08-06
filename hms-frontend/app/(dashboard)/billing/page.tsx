@@ -453,11 +453,6 @@ export default function BillingPage() {
                      <CheckCircle2 size={20} />
                      <span>Fully Paid & Ready</span>
                    </div>
-                   {folioData.balanceDue < 0 && (
-                     <p className="text-xs text-theme-muted text-center mb-1">
-                       A refund of {currencySymbol} {Math.abs(folioData.balanceDue).toFixed(2)} will be automatically recorded to balance the folio to 0.00 upon checkout.
-                     </p>
-                   )}
                    <button 
                      onClick={handleCheckoutAndGenerateInvoice}
                      className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-900/20"

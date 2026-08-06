@@ -496,17 +496,6 @@ export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Respon
     let updatedBooking = null;
 
     await prisma.$transaction(async (tx) => {
-      // If overpaid (balanceDue < 0), insert a refund payment to balance to exactly 0
-      if (balanceDue.lt(0)) {
-        await tx.payment.create({
-          data: {
-            bookingId: id,
-            amount: balanceDue, // Negative amount acts as a refund
-            method: 'Refund'
-          }
-        });
-      }
-
       // Proceed to checkout the booking
       updatedBooking = await checkOutBookingServiceTx(tx, id, booking.roomId, totalAmount);
     }, { isolationLevel: 'Serializable' });

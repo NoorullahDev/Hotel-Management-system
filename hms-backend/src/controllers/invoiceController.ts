@@ -5,7 +5,7 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
 import { getTaxSettings } from '../utils/settings';
-import { formatServiceDescription } from '../services/billing.service';
+import { formatServiceDescription, computeInvoiceLineItems } from '../services/billing.service';
 
 // 80mm thermal receipt: ~226 points width
 const RECEIPT_WIDTH = 226;
@@ -118,79 +118,24 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     };
 
     // ── Build receipt line items ─────────────────────────────────────────
-    // If invoice has items stored in DB, use them. Otherwise calculate on the fly.
-    type ReceiptLine = { description: string; amount: number };
-    let receiptItems: ReceiptLine[] = [];
-    let subTotal = 0;
-    let taxAmount = 0;
+    // Always calculate on the fly to perfectly match the Billing Module
+    const taxSettings = await getTaxSettings();
+    const { items, subTotal: st, taxAmount: ta } = computeInvoiceLineItems(booking, taxSettings.rate, taxSettings.name, taxSettings.pct);
+
+    let receiptItems = items.map(i => ({ description: i.description, amount: i.amount.toNumber() }));
+    let subTotal = st.toNumber();
+    let taxAmount = ta.toNumber();
     let discountAmount = 0;
-    let grandTotal = 0;
 
+    // Preserve historical discount if an invoice was previously generated
     if (invoice && invoice.items && invoice.items.length > 0) {
-      // Use stored invoice items
-      const chargeItems: ReceiptLine[] = [];
-      let storedTax = 0;
-      let storedDiscount = 0;
-
-      (invoice.items as any[]).forEach((item: any) => {
-        const amt = getNumber(item.amount);
-        const desc = item.description.toLowerCase();
-        if (desc.includes('tax') || desc.includes('gst') || desc.includes('vat')) {
-          storedTax += amt;
-        } else if (desc.includes('discount')) {
-          storedDiscount += amt; // negative value
-        } else {
-          chargeItems.push({ description: item.description, amount: amt });
-        }
-      });
-
-      subTotal = chargeItems.reduce((s, i) => s + i.amount, 0);
-      taxAmount = storedTax;
-      discountAmount = storedDiscount;
-      grandTotal = subTotal + taxAmount + discountAmount;
-      receiptItems = chargeItems;
-      
-      // Calculate historical tax percentage
-      if (subTotal > 0 && taxAmount > 0) {
-        taxPct = Math.round((taxAmount / subTotal) * 100);
-      } else if (taxAmount === 0) {
-        taxPct = 0;
-      }
-    } else {
-      // Calculate on the fly from booking data
-      const ciDate = new Date(booking.checkIn);
-      const coDate = new Date(booking.checkOut);
-      const nights = Math.max(1, Math.ceil((coDate.getTime() - ciDate.getTime()) / (1000 * 60 * 60 * 24)));
-      const roomRate = getNumber(booking.room?.price);
-
-      receiptItems.push({ description: `Room Charges (${booking.room?.roomType?.name || 'Standard'})`, amount: nights * roomRate });
-
-      // Include food orders
-      const foodOrders = await prisma.foodOrder.findMany({
-        where: { bookingId: booking.id },
-        include: { items: true }
-      });
-      for (const order of foodOrders) {
-        for (const item of order.items) {
-          receiptItems.push({ description: `Restaurant — ${item.itemName}`, amount: item.quantity * getNumber(item.price) });
-        }
-      }
-
-      // Include housekeeping service orders
-      const serviceOrders = await prisma.serviceOrder.findMany({
-        where: { bookingId: booking.id },
-        include: { items: true }
-      });
-      for (const order of serviceOrders) {
-        for (const item of order.items) {
-          receiptItems.push({ description: formatServiceDescription(item.category, item.serviceName), amount: Number(item.quantity) * getNumber(item.price) });
-        }
-      }
-
-      subTotal = receiptItems.reduce((s, i) => s + i.amount, 0);
-      taxAmount = subTotal * taxRate;
-      grandTotal = subTotal + taxAmount;
+       const discountItem = (invoice.items as any[]).find(i => i.description.toLowerCase().includes('discount'));
+       if (discountItem) {
+          discountAmount = getNumber(discountItem.amount); // negative value
+       }
     }
+
+    let grandTotal = subTotal + taxAmount + discountAmount;
 
     // Calculate stay duration
     const checkInDate = new Date(booking.checkIn);

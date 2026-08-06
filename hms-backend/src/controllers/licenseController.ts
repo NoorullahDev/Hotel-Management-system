@@ -23,9 +23,12 @@ function decrypt(text: string) {
 export const getLicenseStatus = async (req: Request, res: Response) => {
   try {
     const hwid = getHWID();
-    let license = await prisma.license.findUnique({
-      where: { hwid }
-    });
+
+    // Find the license in the local database.
+    // We do NOT filter by HWID — the local SQLite file is already machine-bound.
+    // HWID filtering previously caused "Invalid" status when the machine went
+    // offline because MAC-address-based HWID changed with network adapter state.
+    const license = await prisma.license.findFirst();
 
     if (!license) {
       return res.json({
@@ -37,6 +40,14 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
         daysRemaining: 0,
         lastRenewed: null
       });
+    }
+
+    // Silently migrate the stored HWID to the current stable HWID if needed
+    if (license.hwid !== hwid) {
+      prisma.license.update({
+        where: { id: license.id },
+        data: { hwid }
+      }).catch(() => { /* non-critical */ });
     }
 
     const now = new Date();
@@ -69,6 +80,7 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 export const activateLicense = async (req: Request, res: Response) => {
   try {

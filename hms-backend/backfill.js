@@ -1,0 +1,24 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+async function backfillInvoiceTotals() {
+  const invoices = await prisma.invoice.findMany({
+    include: { items: true, booking: true }
+  });
+
+  for (const invoice of invoices) {
+    if (!invoice.booking) continue;
+    let total = 0;
+    for (const item of invoice.items) {
+      total += Number(item.amount);
+    }
+    await prisma.booking.update({
+      where: { id: invoice.bookingId },
+      data: { total: total }
+    });
+  }
+  
+  console.log(`Successfully synced ${invoices.length} invoices back to bookings.`);
+}
+
+backfillInvoiceTotals().catch(console.error).finally(() => prisma.$disconnect());

@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../prisma';
-import { createBookingService, checkInBookingService } from '../services/booking.service';
+import { createBookingService, checkInBookingService, checkOutBookingServiceTx } from '../services/booking.service';
 import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
 import { Prisma } from '@prisma/client';
 const { Decimal } = Prisma;
@@ -126,15 +126,6 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
       const checkInStr  = b.checkIn.toLocaleDateString('en-US',  { month: 'short', day: 'numeric', year: 'numeric' });
       const checkOutStr = b.checkOut.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       
-      let displayAmount = b.total.toNumber();
-      if (displayAmount === 0) {
-        const nights = Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / 86400000));
-        const roomPrice = Number(b.room.price || 0);
-        const estSubtotal = roomPrice * nights;
-        const taxRate = 0.16; // Using standard 16% as fallback if settings missing
-        displayAmount = estSubtotal + (estSubtotal * taxRate);
-      }
-
       return {
         id:          b.id.substring(0, 13).toUpperCase(),
         rawId:       b.id,
@@ -151,8 +142,8 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
         checkOut:    b.checkOut,
         createdAt:   b.createdAt,
         status:      b.status,
-        amount:      `${settings.currencySymbol} ${displayAmount.toLocaleString()}`,
-        rawAmount:   displayAmount,
+        amount:      `${settings.currencySymbol} ${b.total.toNumber().toLocaleString()}`,
+        rawAmount:   b.total.toNumber(),
       };
     });
 
@@ -471,11 +462,45 @@ export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Respon
 
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    // If invoice exists, don't recreate it
-    let invoice = await prisma.invoice.findUnique({ where: { bookingId: id } });
+    // Ensure the invoice is fully generated and up to date
+    let invoice = await prisma.invoice.findUnique({ 
+      where: { bookingId: id },
+      include: { items: true } 
+    });
     if (!invoice) {
       invoice = await generateInvoice(prisma, booking, Number(discount) || 0);
     }
 
-    res.json(invoice);
+    // Calculate totals
+    const totalAmount = invoice!.items.reduce((sum: Prisma.Decimal, i: any) => sum.plus(i.amount), new Decimal(0));
+    
+    // Get existing payments
+    const payments = await prisma.payment.findMany({ where: { bookingId: id } });
+    const paidAmount = payments.reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
+    const balanceDue = totalAmount.minus(paidAmount);
+    
+    // If they haven't fully paid, block checkout
+    if (balanceDue.gt(0)) {
+      return res.status(400).json({ message: 'Full payment is required before checkout.' });
+    }
+    
+    let updatedBooking = null;
+
+    await prisma.$transaction(async (tx) => {
+      // If overpaid (balanceDue < 0), insert a refund payment to balance to exactly 0
+      if (balanceDue.lt(0)) {
+        await tx.payment.create({
+          data: {
+            bookingId: id,
+            amount: balanceDue, // Negative amount acts as a refund
+            method: 'Refund'
+          }
+        });
+      }
+
+      // Proceed to checkout the booking
+      updatedBooking = await checkOutBookingServiceTx(tx, id, booking.roomId, totalAmount);
+    }, { isolationLevel: 'Serializable' });
+
+    res.json(updatedBooking || invoice);
   });

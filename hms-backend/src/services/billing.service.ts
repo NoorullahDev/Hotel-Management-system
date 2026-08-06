@@ -77,7 +77,7 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
 // Shared invoice generation logic
 export const generateInvoice = async (tx: any, booking: any, discount: number = 0) => {
   const tax = await getTaxSettings();
-  const { items } = computeInvoiceLineItems(booking, tax.rate, tax.name, tax.pct);
+  const { items, subTotal, taxAmount } = computeInvoiceLineItems(booking, tax.rate, tax.name, tax.pct);
   
   // Clone to avoid mutating the original if reused
   const invoiceItems = [...items];
@@ -103,7 +103,7 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
   if (existingInvoice) {
     // Preserve the invoice's identity (same id / createdAt) — only replace its line items.
     await tx.invoiceItem.deleteMany({ where: { invoiceId: existingInvoice.id } });
-    return tx.invoice.update({
+    const updatedInvoice = await tx.invoice.update({
       where: { id: existingInvoice.id },
       data: {
         items: {
@@ -115,10 +115,22 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
       },
       include: { items: true }
     });
+    
+    // Sync booking amounts
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: {
+        subtotal: subTotal,
+        tax: taxAmount,
+        total: subTotal.plus(taxAmount).minus(finalDiscount)
+      }
+    });
+
+    return updatedInvoice;
   }
 
   // No invoice yet — create one from scratch.
-  return tx.invoice.create({
+  const newInvoice = await tx.invoice.create({
     data: {
       bookingId: booking.id,
       items: {
@@ -130,6 +142,18 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
     },
     include: { items: true }
   });
+  
+  // Sync booking amounts
+  await tx.booking.update({
+    where: { id: booking.id },
+    data: {
+      subtotal: subTotal,
+      tax: taxAmount,
+      total: subTotal.plus(taxAmount).minus(finalDiscount)
+    }
+  });
+
+  return newInvoice;
 };
 
 export const settlePayment = async (bookingId: string, amount: number | string, method: string) => {

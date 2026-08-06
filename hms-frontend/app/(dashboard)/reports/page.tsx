@@ -33,9 +33,6 @@ import { useGlobalSettings } from "@/hooks/useGlobalSettings";
 import { api } from "@/lib/api";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
-import TopPDFTemplate from "./_components/TopPDFTemplate";
-import BottomPDFTemplate from "./_components/BottomPDFTemplate";
 
 const API = "/api/reports";
 
@@ -48,7 +45,7 @@ function formatCurrency(n: number, sym: string) {
   return (
     sym +
     " " +
-    n.toLocaleString(undefined, {
+    n.toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
@@ -333,6 +330,7 @@ const STAFF_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#a855f7", "#ec4899"];
 export default function ReportsPage() {
   const {
     hotelName,
+    hotelLogo,
     hotelAddress,
     contactNumber,
     email,
@@ -371,9 +369,9 @@ export default function ReportsPage() {
   const [showOccTable, setShowOccTable] = useState(false);
 
   // PDF Export States
-  const [exportViewAll, setExportViewAll] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [roomStatusStateForPDF, setRoomStatusStateForPDF] = useState({ available: 0, occupied: 0, reserved: 0, outOfOrder: 0, total: 0 });
+  const [recentBookingsStateForPDF, setRecentBookingsStateForPDF] = useState<any[]>([]);
 
   const qs = `?startDate=${range.start}&endDate=${range.end}`;
 
@@ -454,17 +452,17 @@ export default function ReportsPage() {
     a.click();
   };
 
-  const generatePDF = async () => {
+    const generatePDF = async () => {
     setExportingPDF(true);
     try {
       const doc = new jsPDF("p", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      let cursorY = 20;
 
-      // 1. Fetch recent bookings for PDF
-      let fetchedBookings: any[] = [];
+      let fetchedBookings = [];
       try {
-        const res = await api.get<{ data: any[] }>(`/api/bookings?limit=${exportViewAll ? 10000 : 10}`);
+        const res = await api.get<{ data: any[] }>(`/api/bookings?limit=10000`);
         if (res && res.data) {
           fetchedBookings = res.data;
         }
@@ -472,7 +470,6 @@ export default function ReportsPage() {
         console.error("Failed to fetch bookings for PDF", e);
       }
 
-      // 2. Fetch room status for Bottom template
       let roomStatusState = { available: 0, occupied: 0, reserved: 0, outOfOrder: 0, total: 0 };
       try {
         const res = await api.get<any>(`/api/rooms`);
@@ -488,113 +485,316 @@ export default function ReportsPage() {
         console.error("Failed to fetch rooms for PDF", e);
       }
 
-      // 3. Render and capture Top Template
-      const topEl = document.getElementById("pdf-top-template");
-      if (topEl) {
-        const canvas = await html2canvas(topEl, { scale: 2, useCORS: true, logging: false });
-        const imgData = canvas.toDataURL("image/jpeg", 1.0);
-        const imgProps = doc.getImageProperties(imgData);
-        const pdfWidth = pageWidth;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        doc.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      // Header Section
+      // Draw a subtle header band
+      doc.setFillColor(41, 128, 185); // Professional blue
+      doc.rect(0, 0, pageWidth, 5, "F");
 
-        let currentY = pdfHeight + 5; // Start autoTable below Top template
+      cursorY = 15;
 
-        // 4. Draw Tables
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(15, 23, 42);
-        doc.text("REVENUE SUMMARY", 14, currentY);
-        
-        const revSumBody: any[] = [];
-        if (revByDept && revByDept.data) {
-           revByDept.data.forEach((d: any) => revSumBody.push([d.name, formatCurrency(d.value, currencySymbol)]));
+      if (hotelLogo) {
+        try {
+          const loadImage = (url: string): Promise<HTMLImageElement> => {
+            return new Promise((resolve, reject) => {
+              const img = new window.Image();
+              img.crossOrigin = "Anonymous";
+              img.onload = () => resolve(img);
+              img.onerror = (e) => reject(e);
+              img.src = url;
+            });
+          };
+          let logoUrl = hotelLogo;
+          if (logoUrl.startsWith("/")) {
+             logoUrl = window.location.origin + logoUrl;
+          }
+          const img = await loadImage(logoUrl);
+          const maxDim = 30; // Slightly larger for centered logo
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            h = (h / w) * maxDim;
+            w = maxDim;
+          } else {
+            w = (w / h) * maxDim;
+            h = maxDim;
+          }
+          const logoX = (pageWidth - w) / 2;
+          doc.addImage(img, "PNG", logoX, cursorY, w, h);
+          cursorY += h + 6;
+        } catch(e) {
+          console.error("Failed to load logo", e);
+          cursorY += 5;
         }
-        
-        autoTable(doc, {
-          startY: currentY + 4,
-          head: [['Item', 'Amount (Rs.)']],
-          body: revSumBody,
-          foot: [['Total Revenue', formatCurrency(revByDept?.total || 0, currencySymbol)]],
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          footStyles: { fillColor: [246, 248, 250], textColor: [79, 70, 229], fontStyle: 'bold' },
-          margin: { top: 20 },
-        });
+      } else {
+        cursorY += 10;
+      }
 
-        currentY = (doc as any).lastAutoTable.finalY + 15;
+      // Hotel Name
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(44, 62, 80);
+      const nameText = hotelName || "Business Report";
+      doc.text(nameText, (pageWidth - doc.getTextWidth(nameText)) / 2, cursorY);
+      
+      // Address & Contact
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 110, 120);
+      
+      cursorY += 6;
+      if (hotelAddress) {
+        doc.text(hotelAddress, (pageWidth - doc.getTextWidth(hotelAddress)) / 2, cursorY);
+        cursorY += 5;
+      }
+      
+      let contactStr = [];
+      if (contactNumber) contactStr.push(`Tel: ${contactNumber}`);
+      if (email) contactStr.push(`Email: ${email}`);
+      if (contactStr.length > 0) {
+        const cStr = contactStr.join("  |  ");
+        doc.text(cStr, (pageWidth - doc.getTextWidth(cStr)) / 2, cursorY);
+        cursorY += 5;
+      }
+      
+      // Add a dividing line
+      cursorY += 5;
+      doc.setDrawColor(220, 224, 228);
+      doc.setLineWidth(0.5);
+      doc.line(14, cursorY, pageWidth - 14, cursorY);
+      cursorY += 10;
 
-        // Recent Bookings Table
-        if (currentY > pageHeight - 30) {
-            doc.addPage();
-            currentY = 20;
+      // Report Title
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(41, 128, 185);
+      const titleText = "Hotel Performance Report";
+      doc.text(titleText, (pageWidth - doc.getTextWidth(titleText)) / 2, cursorY);
+      cursorY += 8;
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 110, 120);
+      
+      const dateText = `Date Range: ${range.start} to ${range.end}`;
+      doc.text(dateText, (pageWidth - doc.getTextWidth(dateText)) / 2, cursorY);
+      cursorY += 5;
+      
+      const deptText = `Department: ${department}  |  Room Type: ${roomType}`;
+      doc.text(deptText, (pageWidth - doc.getTextWidth(deptText)) / 2, cursorY);
+      cursorY += 5;
+      
+      const genText = `Generated On: ${new Date().toLocaleString()}`;
+      doc.text(genText, (pageWidth - doc.getTextWidth(genText)) / 2, cursorY);
+      cursorY += 10;
+
+      // Reset text color for tables
+      doc.setTextColor(0, 0, 0);
+
+      const noData = [["No Records Found"]];
+
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Metric", "Value"]],
+        body: [
+          ["Total Revenue", summary ? formatCurrency(summary.totalRevenue, currencySymbol) : formatCurrency(0, currencySymbol)],
+          ["Occupancy Rate", `${summary?.occupancyRate || 0}%`],
+          ["Total Bookings", summary?.totalBookings || 0],
+          ["Average Length of Stay", `${summary?.avgLOS || 0} Nights`],
+          ["Guest Satisfaction", `${summary?.guestSatisfaction || 0} / 5`]
+        ],
+        theme: "grid",
+        styles: { fontSize: 10, cellPadding: 3 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" },
+        columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Room Status Report", 14, cursorY);
+      cursorY += 5;
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Total Rooms", "Available", "Occupied", "Reserved", "Out of Order"]],
+        body: [[
+          roomStatusState.total,
+          roomStatusState.available,
+          roomStatusState.occupied,
+          roomStatusState.reserved,
+          roomStatusState.outOfOrder
+        ]],
+        theme: "grid",
+        styles: { fontSize: 10, cellPadding: 3, halign: "center" },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
+
+      const checkPageBreak = (neededSpace: number) => {
+        if (cursorY + neededSpace > pageHeight - 20) {
+          doc.addPage();
+          cursorY = 20;
         }
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(15, 23, 42);
-        doc.text("RECENT BOOKINGS", 14, currentY);
+      };
 
-        const formattedBookings = fetchedBookings.map(b => [
-           b.guest?.name || 'Unknown',
-           b.room?.number || 'N/A',
-           new Date(b.checkIn).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-           new Date(b.checkOut).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-           b.status === 'CHECKED_IN' ? 'Checked In' : b.status === 'RESERVED' ? 'Reserved' : b.status === 'CONFIRMED' ? 'Confirmed' : b.status === 'CHECKED_OUT' ? 'Checked Out' : b.status
+      checkPageBreak(40);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Revenue Summary", 14, cursorY);
+      cursorY += 5;
+      
+      let revBody = revTable?.rows?.map((r: any) => [
+        r.date, 
+        formatCurrency(r.roomsRevenue, currencySymbol),
+        formatCurrency(r.restaurantRevenue, currencySymbol),
+        formatCurrency(r.otherRevenue, currencySymbol),
+        formatCurrency(r.total, currencySymbol)
+      ]) || [];
+      
+      if (revBody.length > 0 && revTable?.totals) {
+        revBody.push([
+          "TOTAL",
+          formatCurrency(revTable.totals.roomsRevenue, currencySymbol),
+          formatCurrency(revTable.totals.restaurantRevenue, currencySymbol),
+          formatCurrency(revTable.totals.otherRevenue, currencySymbol),
+          formatCurrency(revTable.totals.total, currencySymbol)
         ]);
-
-        autoTable(doc, {
-          startY: currentY + 4,
-          head: [['Guest Name', 'Room', 'Check-in', 'Check-out', 'Status']],
-          body: formattedBookings,
-          theme: 'grid',
-          headStyles: { fillColor: [240, 240, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-          margin: { top: 20 },
-        });
-
-        currentY = (doc as any).lastAutoTable.finalY + 10;
-
-        // 5. Render Bottom Template
-        setRoomStatusStateForPDF(roomStatusState);
-        await new Promise(r => setTimeout(r, 300)); // wait for react to render
-
-        const bottomEl = document.getElementById("pdf-bottom-template");
-        if (bottomEl) {
-           const bCanvas = await html2canvas(bottomEl, { scale: 2, useCORS: true, logging: false });
-           const bImgData = bCanvas.toDataURL("image/jpeg", 1.0);
-           const bImgProps = doc.getImageProperties(bImgData);
-           const bPdfHeight = (bImgProps.height * pdfWidth) / bImgProps.width;
-           
-           if (currentY + bPdfHeight > pageHeight) {
-              doc.addPage();
-              currentY = 10;
-           }
-           doc.addImage(bImgData, "JPEG", 0, currentY, pdfWidth, bPdfHeight);
+      }
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Date", "Rooms Rev.", "Restaurant Rev.", "Other Rev.", "Total"]],
+        body: revBody.length ? revBody : noData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" },
+        willDrawCell: (data: any) => {
+          if (data.row.index === revBody.length - 1 && revBody.length > 0 && data.row.raw[0] === "TOTAL") {
+             data.cell.styles.fontStyle = "bold";
+             data.cell.styles.fillColor = [240, 240, 240];
+          }
         }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
 
-        // ─── Pagination Footer ──────────────────────────────────────
-        const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-          doc.setPage(i);
-          doc.setFontSize(8);
-          doc.setTextColor(255, 255, 255); // White text
-          
-          // Draw dark blue footer rect
-          doc.setFillColor(15, 23, 42); 
-          doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
-          
-          doc.text(`Software developed by EagleNest Creation`, 14, pageHeight - 4);
-          doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 4, { align: 'right' });
-        }
+      checkPageBreak(40);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Booking Report", 14, cursorY);
+      cursorY += 5;
+      
+      let bookingBody = fetchedBookings.map((b: any) => [
+         b.guest || 'Unknown',
+         b.room || 'N/A',
+         new Date(b.checkIn).toLocaleDateString(),
+         new Date(b.checkOut).toLocaleDateString(),
+         b.status
+      ]);
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Guest Name", "Room", "Check-in", "Check-out", "Status"]],
+        body: bookingBody.length ? bookingBody : noData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
 
-        const pdfOutput = doc.output('arraybuffer');
-        const filename = `report_${range.start}_to_${range.end}.pdf`;
-        
-        if ((window as any).electron?.savePdf) {
-          const success = await (window as any).electron.savePdf(pdfOutput, filename);
-          if (!success) console.log("PDF save cancelled or failed.");
-        } else {
-          doc.save(filename);
-        }
+      checkPageBreak(40);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Check-In / Check-Out Report", 14, cursorY);
+      cursorY += 5;
+      
+      let inOutBody = fetchedBookings
+        .filter((b) => b.status === "CHECKED_IN" || b.status === "CHECKED_OUT" || b.status === "CONFIRMED")
+        .map((b: any) => [
+         b.guest || 'Unknown',
+         b.room || 'N/A',
+         b.status === "CHECKED_OUT" ? "Check-Out" : (b.status === "CHECKED_IN" ? "Checked-In" : "Expected"),
+         new Date(b.checkIn).toLocaleDateString(),
+         new Date(b.checkOut).toLocaleDateString()
+      ]);
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Guest Name", "Room", "Type", "Check-in Date", "Check-out Date"]],
+        body: inOutBody.length ? inOutBody : noData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
+
+      checkPageBreak(40);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Restaurant Orders Report", 14, cursorY);
+      cursorY += 5;
+      
+      let restBody = restaurant?.map((r: any) => [
+        r.name,
+        r.orders,
+        formatCurrency(r.foodSales, currencySymbol),
+        formatCurrency(r.beverageSales, currencySymbol),
+        formatCurrency(r.revenue, currencySymbol)
+      ]) || [];
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Date / Period", "Total Orders", "Food Sales", "Beverage Sales", "Total Revenue"]],
+        body: restBody.length ? restBody : noData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" }
+      });
+      cursorY = (doc as any).lastAutoTable.finalY + 15;
+
+      checkPageBreak(40);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Staff Performance Report", 14, cursorY);
+      cursorY += 5;
+      
+      let staffBody = staffPerf?.map((s: any) => [
+        s.name,
+        s.department,
+        s.tasksCompleted,
+        `${s.efficiency}%`,
+        s.rating
+      ]) || [];
+      
+      autoTable(doc, {
+        startY: cursorY,
+        head: [["Staff Name", "Department", "Tasks Completed", "Efficiency", "Rating"]],
+        body: staffBody.length ? staffBody : noData,
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" }
+      });
+      
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `Page ${i} of ${pageCount}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: "center" }
+        );
+      }
+
+      const pdfOutput = doc.output('arraybuffer');
+      const filename = `Business_Report_${range.start}_to_${range.end}.pdf`;
+      
+      if (typeof window !== "undefined" && (window as any).electron?.savePdf) {
+        const success = await (window as any).electron.savePdf(pdfOutput, filename);
+        if (!success) console.log("PDF save cancelled or failed.");
+      } else {
+        doc.save(filename);
       }
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -745,18 +945,6 @@ export default function ReportsPage() {
             </div>
             {/* Export buttons — hidden on print */}
             <div className="flex gap-3 print-hide items-center">
-              <div className="flex items-center gap-2 mr-2">
-                 <input 
-                    type="checkbox" 
-                    id="viewAllBookings" 
-                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    checked={exportViewAll} 
-                    onChange={(e) => setExportViewAll(e.target.checked)} 
-                 />
-                 <label htmlFor="viewAllBookings" className="text-sm text-theme-muted cursor-pointer">
-                    Include All Bookings
-                 </label>
-              </div>
               <button
                 onClick={generatePDF}
                 disabled={exportingPDF}
@@ -1532,25 +1720,6 @@ export default function ReportsPage() {
           </ResponsiveContainer>
         </div>
 
-        <TopPDFTemplate 
-           hotelName={hotelName}
-           hotelAddress={hotelAddress}
-           contactNumber={contactNumber}
-           email={email}
-           range={range}
-           department={department}
-           roomType={roomType}
-           revenueCards={revenueCards}
-           occupancy={occupancy}
-           totalBookings={totalBookings}
-           currencySymbol={currencySymbol}
-        />
-        <BottomPDFTemplate 
-           staffPerf={staffPerf}
-           maxTasks={maxTasks}
-           restaurant={restaurant}
-           currencySymbol={currencySymbol}
-        />
 
       </div>
     </>

@@ -126,6 +126,15 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
       const checkInStr  = b.checkIn.toLocaleDateString('en-US',  { month: 'short', day: 'numeric', year: 'numeric' });
       const checkOutStr = b.checkOut.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       
+      let displayAmount = b.total.toNumber();
+      if (displayAmount === 0) {
+        const nights = Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / 86400000));
+        const roomPrice = Number(b.room.price || 0);
+        const estSubtotal = roomPrice * nights;
+        const taxRate = settings?.taxRate ? Number(settings.taxRate) : 0.16;
+        displayAmount = estSubtotal + (estSubtotal * taxRate);
+      }
+
       return {
         id:          b.id.substring(0, 13).toUpperCase(),
         rawId:       b.id,
@@ -142,8 +151,8 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
         checkOut:    b.checkOut,
         createdAt:   b.createdAt,
         status:      b.status,
-        amount:      `${settings.currencySymbol} ${b.total.toNumber().toLocaleString()}`,
-        rawAmount:   b.total.toNumber(),
+        amount:      `${settings.currencySymbol} ${displayAmount.toLocaleString()}`,
+        rawAmount:   displayAmount,
       };
     });
 

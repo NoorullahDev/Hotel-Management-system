@@ -444,8 +444,12 @@ export default function BillingPage() {
                     <span className="text-green-400 font-medium">{currencySymbol} {folioData.paidAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1">
-                    <span className="text-theme-text font-bold">Balance Due</span>
-                    <span className="text-red-400 font-bold">{currencySymbol} {folioData.balanceDue.toFixed(2)}</span>
+                    <span className="text-theme-text font-bold">
+                      {folioData.balanceDue < 0 ? 'Change Due' : 'Balance Due'}
+                    </span>
+                    <span className={`font-bold ${folioData.balanceDue < 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {currencySymbol} {Math.abs(folioData.balanceDue).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>

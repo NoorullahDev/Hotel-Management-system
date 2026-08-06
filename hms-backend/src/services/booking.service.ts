@@ -132,13 +132,17 @@ export const checkInBookingService = async (bookingId: string, roomId: string) =
   return [updatedBooking, null]; // returning array to match original return shape for any potential consumers expecting array result
 };
 
-export const checkOutBookingServiceTx = async (tx: any, bookingId: string, roomId: string) => {
+export const checkOutBookingServiceTx = async (tx: any, bookingId: string, roomId: string, finalTotal?: any) => {
+  const data: any = { 
+    status: 'CHECKED_OUT',
+    checkOut: new Date()
+  };
+  if (finalTotal !== undefined) {
+    data.total = finalTotal;
+  }
   const updatedBooking = await tx.booking.update({
     where: { id: bookingId },
-    data: { 
-      status: 'CHECKED_OUT',
-      checkOut: new Date()
-    },
+    data,
     include: { guest: true, room: true }
   });
   await tx.room.update({

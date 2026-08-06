@@ -178,7 +178,7 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
     let updatedBooking = null;
 
     if (paidAmount.gte(totalAmount)) {
-      updatedBooking = await checkOutBookingServiceTx(tx, bookingId, booking.roomId);
+      updatedBooking = await checkOutBookingServiceTx(tx, bookingId, booking.roomId, totalAmount);
       checkedOut = true;
     }
 

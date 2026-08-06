@@ -282,7 +282,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     
     doc.moveDown(0.2);
     leftRight(doc, 'Paid:', `${currencySymbol} ${totalPaid.toFixed(2)}`, 8, false);
-    leftRight(doc, 'Balance Due:', `${currencySymbol} ${balanceDue.toFixed(2)}`, 8, true);
+    leftRight(doc, balanceDue < 0 ? 'Change Due:' : 'Balance Due:', `${currencySymbol} ${Math.abs(balanceDue).toFixed(2)}`, 8, true);
     
     doc.moveDown(0.5);
     drawDashedLine(doc);

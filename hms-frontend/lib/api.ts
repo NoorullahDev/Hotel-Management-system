@@ -80,7 +80,7 @@ export async function apiFetch<T>(
   if (res.status === 402) {
     const body = await res.json().catch(() => ({}));
     if (typeof window !== 'undefined') {
-      window.location.href = '/settings?tab=license';
+      window.location.href = '/activate';
     }
     throw new ApiError(res.status, body.message || 'License Required', body);
   }

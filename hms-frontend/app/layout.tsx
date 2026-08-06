@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import Providers from "./providers";
+import LicenseLockProvider from "@/components/LicenseLockProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -23,7 +24,9 @@ export default function RootLayout({
       <body className="antialiased min-h-screen bg-theme-main text-theme-text font-sans transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <Providers>
-            {children}
+            <LicenseLockProvider>
+              {children}
+            </LicenseLockProvider>
           </Providers>
         </ThemeProvider>
       </body>

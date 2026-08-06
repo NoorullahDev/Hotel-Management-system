@@ -125,6 +125,16 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
     const formattedBookings = bookings.map(b => {
       const checkInStr  = b.checkIn.toLocaleDateString('en-US',  { month: 'short', day: 'numeric', year: 'numeric' });
       const checkOutStr = b.checkOut.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      
+      let displayAmount = b.total.toNumber();
+      if (displayAmount === 0) {
+        const nights = Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / 86400000));
+        const roomPrice = Number(b.room.price || 0);
+        const estSubtotal = roomPrice * nights;
+        const taxRate = 0.16; // Using standard 16% as fallback if settings missing
+        displayAmount = estSubtotal + (estSubtotal * taxRate);
+      }
+
       return {
         id:          b.id.substring(0, 13).toUpperCase(),
         rawId:       b.id,
@@ -141,8 +151,8 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
         checkOut:    b.checkOut,
         createdAt:   b.createdAt,
         status:      b.status,
-        amount:      `${settings.currencySymbol} ${b.total.toNumber().toLocaleString()}`,
-        rawAmount:   b.total.toNumber(),
+        amount:      `${settings.currencySymbol} ${displayAmount.toLocaleString()}`,
+        rawAmount:   displayAmount,
       };
     });
 
@@ -216,6 +226,20 @@ export const createBooking = asyncHandler(async (req: AuthRequest, res: Response
       });
     }
 
+    // Estimate initial amounts if not provided by client
+    let estSubtotal = subtotal;
+    let estTax = tax;
+    let estTotal = total;
+    if (total === undefined || total === 0 || total === null) {
+       const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86400000));
+       const room = await prisma.room.findUnique({ where: { id: roomId } });
+       const taxSettings = await getTaxSettings();
+       const roomPrice = Number(room?.price || 0);
+       estSubtotal = roomPrice * nights;
+       estTax = estSubtotal * taxSettings.rate;
+       estTotal = estSubtotal + estTax;
+    }
+
     // Create booking. This will trigger the PostgreSQL exclusion constraint if there's an overlap.
     const newBooking = await createBookingService({
       bookingType: bookingType || 'LOCAL',
@@ -226,10 +250,9 @@ export const createBooking = asyncHandler(async (req: AuthRequest, res: Response
       arrivalTime: arrivalTime ? new Date(arrivalTime) : undefined,
       guestCount: parseInt(guestCount) || 1,
       additionalGuests: additionalGuests || null,
-      // subtotal/tax/total default to 0 — actual amounts are calculated at Check-Out via Billing module
-      subtotal: subtotal ?? 0,
-      tax: tax ?? 0,
-      total: total ?? 0,
+      subtotal: estSubtotal,
+      tax: estTax,
+      total: estTotal,
       status: 'CONFIRMED',
       ...(total !== undefined && paymentMethod ? {
         payments: {

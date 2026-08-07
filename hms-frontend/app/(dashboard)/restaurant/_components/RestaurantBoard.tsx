@@ -17,10 +17,22 @@ export default function RestaurantBoard() {
   const [viewMode, setViewMode] = useState<'today' | 'all'>('today');
 
   const { data: orders = [], isLoading } = useQuery({
-    queryKey: ['restaurantOrders'],
+    queryKey: ['restaurantOrders', viewMode],
     queryFn: async () => {
       try {
-        const json = await api.get<any>('/api/restaurant/orders');
+        if (viewMode === 'all') {
+          const first = await api.get<any>('/api/restaurant/orders?limit=500');
+          const allOrders = [...(first.data || [])];
+          const totalPages = first.meta?.totalPages || 1;
+          for (let page = 2; page <= totalPages; page++) {
+            const next = await api.get<any>(`/api/restaurant/orders?page=${page}&limit=500`);
+            allOrders.push(...(next.data || []));
+          }
+          return allOrders;
+        }
+        const todayDate = new Date();
+        const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+        const json = await api.get<any>(`/api/restaurant/orders?startDate=${todayStr}&limit=500`);
         return json.data || [];
       } catch {
         throw new Error('Failed to fetch orders');
@@ -68,9 +80,9 @@ export default function RestaurantBoard() {
   const displayedOrders = viewMode === 'today' ? filteredOrders.filter((o: any) => new Date(o.createdAt).toDateString() === today) : filteredOrders;
 
   return (
-    <div className="flex-1 flex flex-col h-screen bg-theme-main overflow-hidden">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <header className="flex justify-between items-center px-8 py-6 border-b border-theme-border">
+      <header className="flex justify-between items-center mb-2">
         <div>
           <h1 className="text-2xl font-bold text-theme-text mb-1">Restaurant Management</h1>
           <p className="text-sm text-theme-muted">Record food charges and manage menu</p>
@@ -96,8 +108,8 @@ export default function RestaurantBoard() {
         </div>
       </header>
 
-      {/* Main Scrollable Content */}
-      <main className="flex-1 overflow-y-auto p-8">
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col gap-8">
         
         {/* KPI Cards */}
         <div className="grid grid-cols-3 gap-6 mb-8">
@@ -150,7 +162,7 @@ export default function RestaurantBoard() {
                 onClick={() => setViewMode('all')}
                 className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'all' ? 'bg-theme-card text-theme-text shadow-sm' : 'text-theme-muted hover:text-theme-text'}`}
               >
-                All Time
+                Show All
               </button>
             </div>
           </div>

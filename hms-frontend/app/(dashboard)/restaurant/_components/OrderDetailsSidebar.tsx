@@ -1,7 +1,10 @@
 import React from 'react';
 import { X, Clock } from 'lucide-react';
+import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 
-export default function OrderDetailsSidebar({ order, onClose, onStatusChange, currency }: any) {
+export default function OrderDetailsSidebar({ order, onClose, onStatusChange }: any) {
+  const { currency, currencySymbol, taxRate, taxName } = useGlobalSettings();
+
   if (!order) return null;
 
   const shortId = order.orderNumber?.split('-')[0] + '-' + order.orderNumber?.split('-')[1]?.substring(0,4)?.toUpperCase() || 'ORD-NEW';
@@ -21,7 +24,8 @@ export default function OrderDetailsSidebar({ order, onClose, onStatusChange, cu
   };
 
   const subtotal = calculateSubtotal();
-  const taxes = subtotal * 0.10; // 10% tax
+  const taxPct = taxRate !== undefined ? Number(taxRate) : 10;
+  const taxes = subtotal * (taxPct / 100);
   const total = subtotal + taxes;
 
   return (
@@ -88,23 +92,23 @@ export default function OrderDetailsSidebar({ order, onClose, onStatusChange, cu
               <div key={item.id} className="grid grid-cols-12 text-sm text-theme-text items-center">
                 <div className="col-span-6 pr-2 line-clamp-2">{item.itemName}</div>
                 <div className="col-span-2 text-center">{item.quantity}</div>
-                <div className="col-span-2 text-right text-theme-muted">{currency} {Number(item.price).toFixed(2)}</div>
-                <div className="col-span-2 text-right font-medium">{currency} {(Number(item.price) * item.quantity).toFixed(2)}</div>
+                <div className="col-span-2 text-right text-theme-muted">{currencySymbol || currency} {Number(item.price).toFixed(2)}</div>
+                <div className="col-span-2 text-right font-medium">{currencySymbol || currency} {(Number(item.price) * item.quantity).toFixed(2)}</div>
               </div>
             ))}
 
             <div className="mt-2 pt-3 border-t border-theme-border flex flex-col gap-2 text-sm">
               <div className="flex justify-between text-theme-muted">
                 <span>Subtotal</span>
-                <span>{currency} {subtotal.toFixed(2)}</span>
+                <span>{currencySymbol || currency} {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-theme-muted">
-                <span>Taxes (10%)</span>
-                <span>{currency} {taxes.toFixed(2)}</span>
+                <span>{taxName || 'Taxes'} ({taxPct}%)</span>
+                <span>{currencySymbol || currency} {taxes.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-theme-text font-bold text-base pt-1">
                 <span>Total Amount</span>
-                <span>{currency} {total.toFixed(2)}</span>
+                <span>{currencySymbol || currency} {total.toFixed(2)}</span>
               </div>
             </div>
           </div>

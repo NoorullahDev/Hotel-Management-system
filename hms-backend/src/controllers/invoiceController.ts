@@ -48,6 +48,8 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
             guest: true,
             room: { include: { roomType: true } },
             payments: true,
+            foodOrders: { include: { items: true } },
+            serviceOrders: { include: { items: true } }
           }
         },
         items: true
@@ -64,6 +66,8 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
               guest: true,
               room: { include: { roomType: true } },
               payments: true,
+              foodOrders: { include: { items: true } },
+              serviceOrders: { include: { items: true } }
             }
           },
           items: true
@@ -80,6 +84,8 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
           guest: true,
           room: { include: { roomType: true } },
           payments: true,
+          foodOrders: { include: { items: true } },
+          serviceOrders: { include: { items: true } }
         }
       });
     }

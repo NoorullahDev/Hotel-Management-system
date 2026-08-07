@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Search, DollarSign, Clock, AlertCircle, FileText, CheckCircle2, ChevronDown, Download, Printer, Banknote, CreditCard, Landmark, Wallet, User, Crown } from 'lucide-react';
 import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 import { api } from '@/lib/api';
@@ -13,7 +14,9 @@ export default function BillingPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   
-  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const initialBookingId = searchParams ? searchParams.get('bookingId') : null;
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(initialBookingId);
   const [folioData, setFolioData] = useState<any>(null);
   const [loadingFolio, setLoadingFolio] = useState(false);
   const { currencySymbol, currency, taxRate, hotelName, hotelAddress } = useGlobalSettings();
@@ -95,11 +98,18 @@ export default function BillingPage() {
   };
 
   const handleProcessPayment = async () => {
-    if (!paymentAmount || !folioData) return;
+    if (!folioData) return;
+    
+    let processAmount = paymentAmount ? parseFloat(paymentAmount) : (folioData.totalAmount - folioData.paidAmount);
+    if (processAmount <= 0) {
+      alert('Invoice is already fully paid.');
+      return;
+    }
+
     try {
       await api.post('/api/payments', {
         bookingId: folioData.bookingId,
-        amount: parseFloat(paymentAmount),
+        amount: processAmount,
         method: paymentMethod
       });
       
@@ -477,7 +487,7 @@ export default function BillingPage() {
                          value={paymentAmount}
                          onChange={(e) => setPaymentAmount(e.target.value)}
                          className="w-full bg-theme-main border border-theme-border rounded-xl py-3 pl-10 pr-4 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
-                         placeholder="Enter full amount"
+                         placeholder={`Remaining: ${(folioData.totalAmount - folioData.paidAmount).toFixed(2)}`}
                        />
                     </div>
                     <button 
@@ -504,26 +514,6 @@ export default function BillingPage() {
               <div className="p-5 border-t border-theme-border mt-auto">
                  <h3 className="text-xs font-bold text-theme-muted uppercase tracking-wider mb-3">Quick Actions</h3>
                  
-                 {/* Transaction Buttons */}
-                 <div className="flex gap-2 mb-2">
-                   <button 
-                     onClick={handleProcessPayment}
-                     className="flex-1 py-2 bg-[#22c55e]/10 border border-[#22c55e]/30 hover:bg-[#22c55e]/20 text-[#22c55e] text-[11px] font-semibold rounded-lg flex items-center justify-center transition-colors"
-                   >
-                     Receive Payment
-                   </button>
-                   <button 
-                     className="flex-1 py-2 bg-[#eab308]/10 border border-[#eab308]/30 hover:bg-[#eab308]/20 text-[#eab308] text-[11px] font-semibold rounded-lg flex items-center justify-center transition-colors"
-                   >
-                     Partial Payment
-                   </button>
-                   <button 
-                     className="flex-1 py-2 bg-[#ef4444]/10 border border-[#ef4444]/30 hover:bg-[#ef4444]/20 text-[#ef4444] text-[11px] font-semibold rounded-lg flex items-center justify-center transition-colors"
-                   >
-                     Refund
-                   </button>
-                 </div>
-
                  {/* Document Buttons */}
                  <div className="flex gap-2">
                    <button 

@@ -128,7 +128,7 @@ export default function CheckoutPage() {
                     </td>
                     <td className="p-4 text-right">
                       <button 
-                        onClick={() => router.push('/billing')}
+                        onClick={() => router.push(`/billing?bookingId=${b.rawId}`)}
                         className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-theme-text text-xs font-medium rounded-xl flex items-center gap-2 ml-auto transition-all shadow-lg shadow-orange-900/20"
                       >
                         <Receipt size={14} /> Process Billing

@@ -131,8 +131,8 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
         const nights = Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / 86400000));
         const roomPrice = Number(b.room.price || 0);
         const estSubtotal = roomPrice * nights;
-        const taxRate = settings?.taxRate ? Number(settings.taxRate) : 0.16;
-        displayAmount = estSubtotal + (estSubtotal * taxRate);
+        const taxRate = settings?.taxRate !== undefined ? Number(settings.taxRate) : 10;
+        displayAmount = estSubtotal + (estSubtotal * (taxRate / 100));
       }
 
       return {
@@ -449,6 +449,7 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
       })),
       subTotal: subTotal.toNumber(),
       taxAmount: taxAmount.toNumber(),
+      taxPct: tax.pct,
       discount: discount.toNumber(),
       totalAmount: totalAmount.toNumber(),
       paidAmount: paidAmount.toNumber(),

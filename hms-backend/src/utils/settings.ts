@@ -31,7 +31,9 @@ export async function getTaxSettings(): Promise<TaxSettings> {
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
   const enabled = map['enabled'] !== false;
-  const rate = enabled ? parseFloat((map['rate'] as string) || '10') / 100 : 0;
+  const rawRate = map['rate'];
+  const rateStr = (rawRate !== undefined && rawRate !== null && rawRate !== '') ? String(rawRate) : '10';
+  const rate = enabled ? parseFloat(rateStr) / 100 : 0;
   const name = (map['name'] as string) || 'Tax';
 
   const value: TaxSettings = { enabled, rate, pct: rate * 100, name };
@@ -107,9 +109,12 @@ export async function getPublicSettingsData(): Promise<PublicSettings> {
   );
 
   const taxEnabled = settingMap['enabled'] !== false;
-  const taxRate = taxEnabled
-    ? parseFloat((settingMap['rate'] as string) || legacySettings?.taxRate?.toString() || '0')
-    : 0;
+  const rawRate = settingMap['rate'];
+  const legacyRate = legacySettings?.taxRate;
+  const rateStr = (rawRate !== undefined && rawRate !== null && rawRate !== '') 
+    ? String(rawRate) 
+    : (legacyRate !== undefined && legacyRate !== null ? String(legacyRate) : '0');
+  const taxRate = taxEnabled ? parseFloat(rateStr) : 0;
 
   const value: PublicSettings = {
     hotelName:              (settingMap['hotelName'] as string)              || legacySettings?.name        || 'Your Hotel Name',

@@ -144,7 +144,7 @@ function SettingsContent() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-80px)] items-center justify-center text-theme-muted">
+      <div className="flex h-[calc(100vh-144px)] items-center justify-center text-theme-muted">
         <Loader2 className="animate-spin w-8 h-8 mr-2" />
         Loading settings...
       </div>
@@ -152,7 +152,7 @@ function SettingsContent() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-100px)] overflow-hidden rounded-2xl border border-theme-border bg-theme-main">
+    <div className="flex h-[calc(100vh-144px)] overflow-hidden rounded-2xl border border-theme-border bg-theme-main">
       {/* Sidebar */}
       <div className="w-64 bg-theme-secondary border-r border-theme-border overflow-y-auto hidden md:block hide-scrollbar">
         <div className="p-4 border-b border-theme-border sticky top-0 bg-theme-secondary/90 backdrop-blur z-10">
@@ -239,7 +239,7 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="flex h-[calc(100vh-80px)] items-center justify-center text-theme-muted"><Loader2 className="animate-spin w-8 h-8 mr-2" />Loading settings...</div>}>
+    <Suspense fallback={<div className="flex h-[calc(100vh-144px)] items-center justify-center text-theme-muted"><Loader2 className="animate-spin w-8 h-8 mr-2" />Loading settings...</div>}>
       <SettingsContent />
     </Suspense>
   );

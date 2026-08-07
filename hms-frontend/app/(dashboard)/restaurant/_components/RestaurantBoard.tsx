@@ -14,6 +14,7 @@ export default function RestaurantBoard() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'today' | 'all'>('today');
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['restaurantOrders'],
@@ -63,6 +64,8 @@ export default function RestaurantBoard() {
   const todaysOrders = orders.filter((o: any) => new Date(o.createdAt).toDateString() === today && o.status !== 'Cancelled');
   const totalRevenueToday = todaysOrders.reduce((sum: number, o: any) => sum + Number(o.totalAmount || 0), 0);
   const totalItemsToday = todaysOrders.reduce((sum: number, o: any) => sum + (o.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0), 0);
+
+  const displayedOrders = viewMode === 'today' ? filteredOrders.filter((o: any) => new Date(o.createdAt).toDateString() === today) : filteredOrders;
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-theme-main overflow-hidden">
@@ -134,7 +137,23 @@ export default function RestaurantBoard() {
 
         {/* Recent Orders Table */}
         <div className="mb-12">
-          <h2 className="text-lg font-bold text-theme-text mb-4">Recent Food Charges</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-theme-text">Recent Food Charges</h2>
+            <div className="flex bg-theme-secondary rounded-lg p-1 border border-theme-border">
+              <button 
+                onClick={() => setViewMode('today')}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'today' ? 'bg-theme-card text-theme-text shadow-sm' : 'text-theme-muted hover:text-theme-text'}`}
+              >
+                Today
+              </button>
+              <button 
+                onClick={() => setViewMode('all')}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'all' ? 'bg-theme-card text-theme-text shadow-sm' : 'text-theme-muted hover:text-theme-text'}`}
+              >
+                All Time
+              </button>
+            </div>
+          </div>
           <div className="bg-theme-card border border-theme-border rounded-2xl shadow-soft overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -150,14 +169,14 @@ export default function RestaurantBoard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-theme-border text-sm text-theme-text">
-                  {filteredOrders.length === 0 ? (
+                  {displayedOrders.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="p-8 text-center text-theme-muted">
                         No food charges found.
                       </td>
                     </tr>
                   ) : (
-                    filteredOrders.map((order: any) => (
+                    displayedOrders.map((order: any) => (
                       <tr key={order.id} className="hover:bg-theme-hover transition-colors">
                         <td className="p-4 font-medium">
                           {order.orderNumber?.split('-')[0] + '-' + order.orderNumber?.split('-')[1]?.substring(0,4)?.toUpperCase() || 'ORD-NEW'}

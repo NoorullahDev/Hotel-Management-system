@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChefHat, Search, Plus, Clock, CheckCircle, Flame } from 'lucide-react';
-import OrderCard from './OrderCard';
+import { Utensils, Search, Plus, DollarSign, ListOrdered } from 'lucide-react';
 import OrderDetailsSidebar from './OrderDetailsSidebar';
 import NewOrderModal from './NewOrderModal';
 import MenuManagement from './MenuManagement';
@@ -48,33 +47,10 @@ export default function RestaurantBoard() {
       queryClient.invalidateQueries({ queryKey: ['restaurantOrders'] });
     });
 
-    socket.on('order:status_changed', (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['restaurantOrders'] });
-      setSelectedOrder((prev: any) => {
-        if (prev && prev.id === data.orderId) {
-          return data.order;
-        }
-        return prev;
-      });
-    });
-
     return () => {
       socket.disconnect();
     };
   }, [queryClient]);
-
-  const handleStatusChange = async (orderId: string, newStatus: string) => {
-    try {
-      await api.patch(`/api/restaurant/orders/${orderId}/status`, { status: newStatus });
-      // Optimistic update
-      queryClient.setQueryData(['restaurantOrders'], (old: any) => {
-        if (!old) return old;
-        return old.map((o: any) => o.id === orderId ? { ...o, status: newStatus } : o);
-      });
-    } catch (error) {
-      console.error('Failed to change status', error);
-    }
-  };
 
   const filteredOrders = orders.filter((o: any) => 
     o.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -82,11 +58,11 @@ export default function RestaurantBoard() {
     o.booking?.guest?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingOrders = filteredOrders.filter((o: any) => o.status === 'Pending');
-  const preparingOrders = filteredOrders.filter((o: any) => o.status === 'Preparing');
-  const readyOrders = filteredOrders.filter((o: any) => o.status === 'Ready');
-  const servedOrders = filteredOrders.filter((o: any) => o.status === 'Served');
-
+  // Calculate today's stats
+  const today = new Date().toDateString();
+  const todaysOrders = orders.filter((o: any) => new Date(o.createdAt).toDateString() === today && o.status !== 'Cancelled');
+  const totalRevenueToday = todaysOrders.reduce((sum: number, o: any) => sum + Number(o.totalAmount || 0), 0);
+  const totalItemsToday = todaysOrders.reduce((sum: number, o: any) => sum + (o.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0), 0);
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-theme-main overflow-hidden">
@@ -94,7 +70,7 @@ export default function RestaurantBoard() {
       <header className="flex justify-between items-center px-8 py-6 border-b border-theme-border">
         <div>
           <h1 className="text-2xl font-bold text-theme-text mb-1">Restaurant Management</h1>
-          <p className="text-sm text-theme-muted">Manage restaurant orders, kitchen workflow and menu</p>
+          <p className="text-sm text-theme-muted">Record food charges and manage menu</p>
         </div>
         
         <div className="flex items-center gap-6">
@@ -121,126 +97,103 @@ export default function RestaurantBoard() {
       <main className="flex-1 overflow-y-auto p-8">
         
         {/* KPI Cards */}
-        <div className="grid grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-3 gap-6 mb-8">
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
-              <ChefHat size={24} />
+            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-primary">
+              <ListOrdered size={24} />
             </div>
             <div>
-              <p className="text-sm text-theme-muted">Active Orders</p>
-              <h3 className="text-2xl font-bold text-theme-text">{orders.filter((o:any) => o.status !== 'Served').length}</h3>
-              <p className="text-xs text-theme-muted-light mt-1">View all active orders</p>
+              <p className="text-sm text-theme-muted">Total Orders (Today)</p>
+              <h3 className="text-2xl font-bold text-theme-text">{todaysOrders.length}</h3>
+              <p className="text-xs text-theme-muted-light mt-1">Recorded food orders</p>
             </div>
           </div>
           
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-              <Clock size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-theme-muted">Pending Orders</p>
-              <h3 className="text-2xl font-bold text-theme-text">{pendingOrders.length}</h3>
-              <p className="text-xs text-theme-muted-light mt-1">Waiting to be accepted</p>
-            </div>
-          </div>
-
-          <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500">
-              <Flame size={24} />
-            </div>
-            <div>
-              <p className="text-sm text-theme-muted">Preparing</p>
-              <h3 className="text-2xl font-bold text-theme-text">{preparingOrders.length}</h3>
-              <p className="text-xs text-theme-muted-light mt-1">Currently in kitchen</p>
-            </div>
-          </div>
-
-          <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500">
-              <CheckCircle size={24} />
+              <DollarSign size={24} />
             </div>
             <div>
-              <p className="text-sm text-theme-muted">Ready</p>
-              <h3 className="text-2xl font-bold text-theme-text">{readyOrders.length}</h3>
-              <p className="text-xs text-theme-muted-light mt-1">Ready to serve</p>
+              <p className="text-sm text-theme-muted">Food Revenue (Today)</p>
+              <h3 className="text-2xl font-bold text-theme-text">{currency} {totalRevenueToday.toLocaleString()}</h3>
+              <p className="text-xs text-theme-muted-light mt-1">Total charges recorded</p>
             </div>
           </div>
 
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-primary">
-              <ChefHat size={24} />
+            <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+              <Utensils size={24} />
             </div>
             <div>
-              <p className="text-sm text-theme-muted">Served</p>
-              <h3 className="text-2xl font-bold text-theme-text">{servedOrders.length}</h3>
-              <p className="text-xs text-theme-muted-light mt-1">Served today</p>
+              <p className="text-sm text-theme-muted">Items Ordered (Today)</p>
+              <h3 className="text-2xl font-bold text-theme-text">{totalItemsToday}</h3>
+              <p className="text-xs text-theme-muted-light mt-1">Total items served</p>
             </div>
           </div>
         </div>
 
-        {/* Kanban Board */}
-        <div className="grid grid-cols-4 gap-6 mb-12">
-          
-          {/* Pending Column */}
-          <div className="bg-theme-card shadow-soft/50 rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex justify-between items-center mb-2 px-1">
-              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span> Pending
-              </h3>
-              <span className="text-xs text-theme-muted">{pendingOrders.length}</span>
-            </div>
-            <div className="flex flex-col gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scrollbar">
-              {pendingOrders.map((order: any) => (
-                <OrderCard key={order.id} order={order} currency={currency} onClick={() => setSelectedOrder(order)} />
-              ))}
+        {/* Recent Orders Table */}
+        <div className="mb-12">
+          <h2 className="text-lg font-bold text-theme-text mb-4">Recent Food Charges</h2>
+          <div className="bg-theme-card border border-theme-border rounded-2xl shadow-soft overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-theme-secondary text-theme-muted text-xs uppercase tracking-wider border-b border-theme-border">
+                    <th className="p-4 font-medium">Order #</th>
+                    <th className="p-4 font-medium">Room</th>
+                    <th className="p-4 font-medium">Guest</th>
+                    <th className="p-4 font-medium">Time</th>
+                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium">Total Amount</th>
+                    <th className="p-4 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-theme-border text-sm text-theme-text">
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-theme-muted">
+                        No food charges found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOrders.map((order: any) => (
+                      <tr key={order.id} className="hover:bg-theme-hover transition-colors">
+                        <td className="p-4 font-medium">
+                          {order.orderNumber?.split('-')[0] + '-' + order.orderNumber?.split('-')[1]?.substring(0,4)?.toUpperCase() || 'ORD-NEW'}
+                        </td>
+                        <td className="p-4 font-bold text-primary">
+                          {order.booking?.room?.number || '--'}
+                        </td>
+                        <td className="p-4">
+                          {order.booking?.guest?.name || '--'}
+                        </td>
+                        <td className="p-4 text-theme-muted">
+                          {new Date(order.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </td>
+                        <td className="p-4">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${order.status === 'Cancelled' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
+                            {order.status === 'Cancelled' ? 'Cancelled' : 'Recorded'}
+                          </span>
+                        </td>
+                        <td className="p-4 font-bold">
+                          {currency} {Number(order.totalAmount || 0).toLocaleString()}
+                        </td>
+                        <td className="p-4 text-right">
+                          <button
+                            onClick={() => setSelectedOrder(order)}
+                            className="text-primary hover:text-primary/80 font-medium text-xs px-3 py-1.5 rounded-lg bg-primary/10 transition-colors"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {/* Preparing Column */}
-          <div className="bg-theme-card shadow-soft/50 rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex justify-between items-center mb-2 px-1">
-              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-orange-500"></span> Preparing
-              </h3>
-              <span className="text-xs text-theme-muted">{preparingOrders.length}</span>
-            </div>
-            <div className="flex flex-col gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scrollbar">
-              {preparingOrders.map((order: any) => (
-                <OrderCard key={order.id} order={order} currency={currency} onClick={() => setSelectedOrder(order)} />
-              ))}
-            </div>
-          </div>
-
-          {/* Ready Column */}
-          <div className="bg-theme-card shadow-soft/50 rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex justify-between items-center mb-2 px-1">
-              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span> Ready
-              </h3>
-              <span className="text-xs text-theme-muted">{readyOrders.length}</span>
-            </div>
-            <div className="flex flex-col gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scrollbar">
-              {readyOrders.map((order: any) => (
-                <OrderCard key={order.id} order={order} currency={currency} onClick={() => setSelectedOrder(order)} />
-              ))}
-            </div>
-          </div>
-
-          {/* Served Column */}
-          <div className="bg-theme-card shadow-soft/50 rounded-2xl p-4 flex flex-col gap-4">
-            <div className="flex justify-between items-center mb-2 px-1">
-              <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span> Served
-              </h3>
-              <span className="text-xs text-theme-muted">{servedOrders.length}</span>
-            </div>
-            <div className="flex flex-col gap-3 overflow-y-auto max-h-[500px] pr-1 custom-scrollbar">
-              {servedOrders.map((order: any) => (
-                <OrderCard key={order.id} order={order} currency={currency} onClick={() => setSelectedOrder(order)} />
-              ))}
-            </div>
-          </div>
-
         </div>
 
         {/* Menu Management Component */}
@@ -252,7 +205,6 @@ export default function RestaurantBoard() {
         order={selectedOrder} 
         currency={currency}
         onClose={() => setSelectedOrder(null)} 
-        onStatusChange={handleStatusChange} 
       />
 
       {isNewOrderModalOpen && <NewOrderModal currency={currency} onClose={() => setIsNewOrderModalOpen(false)} />}

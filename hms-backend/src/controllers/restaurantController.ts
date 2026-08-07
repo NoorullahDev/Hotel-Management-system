@@ -114,7 +114,7 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     const order = await prisma.foodOrder.create({
       data: {
         bookingId: booking.id,
-        status: 'Pending',
+        status: 'Served',
         notes: notes || null,
         totalAmount,
         items: {

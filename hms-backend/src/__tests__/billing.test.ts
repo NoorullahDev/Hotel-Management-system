@@ -14,7 +14,6 @@ import { describe, it, expect } from 'vitest';
  *   subTotal      = roomCharges + foodCharges
  *   taxAmount     = subTotal × taxRate          (default 10%)
  *   totalAmount   = subTotal + taxAmount - discount
- *   balanceDue    = totalAmount - paidAmount
  */
 
 // ── Pure billing helpers (extracted from controller logic) ────────────────────
@@ -36,7 +35,6 @@ interface BillingInput {
   foodItems: FoodItem[];
   taxRate: number;
   discount: number;
-  paidAmount: number;
 }
 
 interface BillingResult {
@@ -46,7 +44,6 @@ interface BillingResult {
   subTotal: number;
   taxAmount: number;
   totalAmount: number;
-  balanceDue: number;
 }
 
 function calculateBilling(input: BillingInput): BillingResult {
@@ -61,9 +58,8 @@ function calculateBilling(input: BillingInput): BillingResult {
   const subTotal = roomCharges + foodCharges;
   const taxAmount = subTotal * input.taxRate;
   const totalAmount = subTotal + taxAmount - input.discount;
-  const balanceDue = totalAmount - input.paidAmount;
 
-  return { nights, roomCharges, foodCharges, subTotal, taxAmount, totalAmount, balanceDue };
+  return { nights, roomCharges, foodCharges, subTotal, taxAmount, totalAmount };
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -109,7 +105,6 @@ describe('calculateBilling — room charges only', () => {
       foodItems: [],
       taxRate: 0.10,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.nights).toBe(3);
@@ -118,7 +113,6 @@ describe('calculateBilling — room charges only', () => {
     expect(result.subTotal).toBe(15000);
     expect(result.taxAmount).toBe(1500);
     expect(result.totalAmount).toBe(16500);
-    expect(result.balanceDue).toBe(16500);
   });
 });
 
@@ -135,7 +129,6 @@ describe('calculateBilling — room + food charges', () => {
       ],
       taxRate: 0.10,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.nights).toBe(2);
@@ -156,7 +149,6 @@ describe('calculateBilling — tax calculation', () => {
       foodItems: [],
       taxRate: 0.10,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.subTotal).toBe(10000);
@@ -172,7 +164,6 @@ describe('calculateBilling — tax calculation', () => {
       foodItems: [],
       taxRate: 0.15,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.taxAmount).toBe(1500);
@@ -187,7 +178,6 @@ describe('calculateBilling — tax calculation', () => {
       foodItems: [],
       taxRate: 0,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.taxAmount).toBe(0);
@@ -204,7 +194,6 @@ describe('calculateBilling — discount', () => {
       foodItems: [],
       taxRate: 0.10,
       discount: 2000,
-      paidAmount: 0,
     });
 
     // subTotal = 10000, tax = 1000, total = 11000 - 2000 = 9000
@@ -221,13 +210,12 @@ describe('calculateBilling — discount', () => {
       foodItems: [],
       taxRate: 0.10,
       discount: 0,
-      paidAmount: 0,
     });
 
     expect(result.totalAmount).toBe(5500);
   });
 
-  it('should allow discount to exceed subtotal+tax (resulting in negative balance)', () => {
+  it('should allow discount to exceed subtotal+tax (resulting in negative total)', () => {
     const result = calculateBilling({
       checkIn: new Date('2026-08-01'),
       checkOut: new Date('2026-08-02'),
@@ -235,7 +223,6 @@ describe('calculateBilling — discount', () => {
       foodItems: [],
       taxRate: 0.10,
       discount: 5000,
-      paidAmount: 0,
     });
 
     // subTotal=1000, tax=100, total=1100-5000=-3900
@@ -243,56 +230,9 @@ describe('calculateBilling — discount', () => {
   });
 });
 
-describe('calculateBilling — balance due', () => {
-  it('should compute balance due as total minus paid amount', () => {
-    const result = calculateBilling({
-      checkIn: new Date('2026-08-01'),
-      checkOut: new Date('2026-08-04'), // 3 nights
-      roomRate: 5000,
-      foodItems: [{ qty: 1, price: 500 }],
-      taxRate: 0.10,
-      discount: 0,
-      paidAmount: 10000,
-    });
-
-    // room=15000, food=500, sub=15500, tax=1550, total=17050
-    // balance = 17050 - 10000 = 7050
-    expect(result.totalAmount).toBeCloseTo(17050, 2);
-    expect(result.balanceDue).toBeCloseTo(7050, 2);
-  });
-
-  it('should show zero balance when fully paid', () => {
-    const result = calculateBilling({
-      checkIn: new Date('2026-08-01'),
-      checkOut: new Date('2026-08-02'),
-      roomRate: 10000,
-      foodItems: [],
-      taxRate: 0.10,
-      discount: 0,
-      paidAmount: 11000,
-    });
-
-    expect(result.balanceDue).toBe(0);
-  });
-
-  it('should show negative balance when overpaid', () => {
-    const result = calculateBilling({
-      checkIn: new Date('2026-08-01'),
-      checkOut: new Date('2026-08-02'),
-      roomRate: 10000,
-      foodItems: [],
-      taxRate: 0.10,
-      discount: 0,
-      paidAmount: 15000,
-    });
-
-    // total = 11000, balance = 11000 - 15000 = -4000
-    expect(result.balanceDue).toBe(-4000);
-  });
-});
 
 describe('calculateBilling — full scenario', () => {
-  it('should calculate a complete billing with room, food, tax, discount, and partial payment', () => {
+  it('should calculate a complete billing with room, food, tax, and discount', () => {
     const result = calculateBilling({
       checkIn: new Date('2026-08-01'),
       checkOut: new Date('2026-08-06'), // 5 nights
@@ -304,7 +244,6 @@ describe('calculateBilling — full scenario', () => {
       ],
       taxRate: 0.10,
       discount: 3000,
-      paidAmount: 40000,
     });
 
     // room = 5 × 8000 = 40000
@@ -312,13 +251,11 @@ describe('calculateBilling — full scenario', () => {
     // sub = 44500
     // tax = 4450
     // total = 44500 + 4450 - 3000 = 45950
-    // balance = 45950 - 40000 = 5950
     expect(result.nights).toBe(5);
     expect(result.roomCharges).toBe(40000);
     expect(result.foodCharges).toBe(4500);
     expect(result.subTotal).toBe(44500);
     expect(result.taxAmount).toBeCloseTo(4450, 2);
     expect(result.totalAmount).toBeCloseTo(45950, 2);
-    expect(result.balanceDue).toBeCloseTo(5950, 2);
   });
 });

@@ -433,7 +433,6 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
 
     const totalAmount = subTotal.plus(taxAmount).minus(discount);
     const paidAmount = booking.payments.reduce((sum, p) => sum.plus(p.amount), new Decimal(0));
-    const balanceDue = totalAmount.minus(paidAmount);
 
     res.json({
       bookingId: booking.id,
@@ -442,13 +441,17 @@ export const getFolio = asyncHandler(async (req: Request, res: Response) => {
       checkIn: booking.checkIn,
       checkOut: booking.checkOut,
       status: booking.status,
-      items: items.map(i => ({ ...i, amount: i.amount.toNumber() })),
+      items: items.map(i => ({
+        description: i.description,
+        qty: i.qty,
+        rate: i.rate !== undefined && i.rate !== null ? i.rate.toNumber() : undefined,
+        amount: i.amount.toNumber()
+      })),
       subTotal: subTotal.toNumber(),
       taxAmount: taxAmount.toNumber(),
       discount: discount.toNumber(),
       totalAmount: totalAmount.toNumber(),
       paidAmount: paidAmount.toNumber(),
-      balanceDue: balanceDue.toNumber(),
       payments: booking.payments.map(p => ({ ...p, amount: p.amount.toNumber() })),
       hasInvoice: !!existingInvoice
     });
@@ -486,10 +489,10 @@ export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Respon
     // Get existing payments
     const payments = await prisma.payment.findMany({ where: { bookingId: id } });
     const paidAmount = payments.reduce((sum: Prisma.Decimal, p: any) => sum.plus(p.amount), new Decimal(0));
-    const balanceDue = totalAmount.minus(paidAmount);
+    const remainingTotal = totalAmount.minus(paidAmount);
     
     // If they haven't fully paid, block checkout
-    if (balanceDue.gt(0)) {
+    if (remainingTotal.gt(0)) {
       return res.status(400).json({ message: 'Full payment is required before checkout.' });
     }
     

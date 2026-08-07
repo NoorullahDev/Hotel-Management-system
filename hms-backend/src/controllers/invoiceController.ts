@@ -145,8 +145,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     // Payment info
     const totalPaid = booking.payments ? booking.payments.reduce((sum: number, p: any) => sum + getNumber(p.amount), 0) : 0;
     const paymentMethods = booking.payments ? [...new Set(booking.payments.map((p: any) => p.method))].join(', ') || 'N/A' : 'N/A';
-    const balanceDue = grandTotal - totalPaid;
-    const paymentStatus = balanceDue <= 0 ? 'PAID' : (totalPaid > 0 ? 'PARTIAL' : 'PENDING');
+    const paymentStatus = totalPaid >= grandTotal ? 'PAID' : (totalPaid > 0 ? 'PARTIAL' : 'PENDING');
 
     // ── Create Thermal Receipt PDF ──────────────────────────────────────
     const doc = new PDFDocument({ 

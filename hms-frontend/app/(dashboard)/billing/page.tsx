@@ -86,11 +86,7 @@ export default function BillingPage() {
       const data = await api.get<any>(`/api/bookings/${bookingId}/folio`);
       setFolioData(data);
       setSelectedBookingId(bookingId);
-      if (data.balanceDue > 0) {
-        setPaymentAmount(data.balanceDue.toString());
-      } else {
-        setPaymentAmount('');
-      }
+      setPaymentAmount('');
     } catch (error) {
       console.error('Error generating folio', error);
     } finally {
@@ -128,8 +124,9 @@ export default function BillingPage() {
       setSelectedBookingId(null);
       setFolioData(null);
       setDiscountAmount('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error on checkout/invoice generation', error);
+      alert(error.message || 'Checkout failed. Please ensure full payment has been collected.');
     }
   };
 
@@ -354,9 +351,9 @@ export default function BillingPage() {
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-lg font-bold text-blue-400">INV-{folioData.bookingId.substring(0, 8).toUpperCase()}</h2>
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                    folioData.balanceDue <= 0 ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'
+                    folioData.status === 'CHECKED_OUT' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'
                   }`}>
-                    {folioData.balanceDue <= 0 ? 'Paid' : 'Partial / Pending'}
+                    {folioData.status === 'CHECKED_OUT' ? 'Paid' : 'Pending'}
                   </span>
                 </div>
                 
@@ -446,24 +443,8 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              {/* Ready for Checkout state */}
-              {folioData.balanceDue <= 0 && folioData.status !== 'CHECKED_OUT' && (
-                <div className="p-5 flex flex-col items-center justify-center gap-3 bg-green-500/5 m-4 rounded-xl border border-green-500/20">
-                   <div className="flex items-center gap-2 text-green-400 font-bold">
-                     <CheckCircle2 size={20} />
-                     <span>Fully Paid & Ready</span>
-                   </div>
-                   <button 
-                     onClick={handleCheckoutAndGenerateInvoice}
-                     className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-900/20"
-                   >
-                     Complete Check-Out
-                   </button>
-                </div>
-              )}
-
-              {/* Payment Processing */}
-              {folioData.balanceDue > 0 && (
+              {/* Payment Processing — always visible for non-checked-out bookings */}
+              {folioData.status !== 'CHECKED_OUT' && (
                 <div className="p-5">
                   <h3 className="text-sm font-bold text-theme-text mb-3">Payment Methods</h3>
                   <div className="grid grid-cols-4 gap-2 mb-4">
@@ -496,7 +477,7 @@ export default function BillingPage() {
                          value={paymentAmount}
                          onChange={(e) => setPaymentAmount(e.target.value)}
                          className="w-full bg-theme-main border border-theme-border rounded-xl py-3 pl-10 pr-4 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
-                         placeholder="Enter amount"
+                         placeholder="Enter full amount"
                        />
                     </div>
                     <button 
@@ -504,6 +485,16 @@ export default function BillingPage() {
                       className="px-6 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-theme-text font-medium rounded-xl transition-all shadow-lg shadow-blue-900/20 whitespace-nowrap"
                     >
                       Receive Payment
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-col items-center justify-center gap-3 bg-blue-500/5 rounded-xl border border-blue-500/20 p-3">
+                    <p className="text-xs text-theme-muted text-center">After full payment is collected, complete checkout to finalise the invoice.</p>
+                    <button 
+                      onClick={handleCheckoutAndGenerateInvoice}
+                      className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-900/20"
+                    >
+                      Complete Check-Out
                     </button>
                   </div>
                 </div>

@@ -12,9 +12,11 @@ let io: SocketIOServer | null = null;
 export const initializeSocket = (server: HttpServer) => {
   io = new SocketIOServer(server, {
     cors: {
-      // Restrict to the configured frontend URL in production.
-      // In dev, FRONTEND_URL defaults to localhost:3000.
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      // The statically-exported frontend is served by this same Express server
+      // (the desktop app loads it from http://127.0.0.1:PORT), so socket
+      // connections arrive from that origin — not from the old Next.js dev
+      // server at localhost:3000, which does not exist in the desktop build.
+      origin: process.env.FRONTEND_URL || 'http://127.0.0.1:4000',
       methods: ['GET', 'POST'],
     }
   });

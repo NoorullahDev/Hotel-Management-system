@@ -11,7 +11,6 @@
  *   - NEXT_PUBLIC_BACKEND_URL       (layout.tsx + useGlobalSettings.ts)
  *   - NEXT_PUBLIC_API_URL           (socket.ts)
  */
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  'http://localhost:4000';
+export const API_BASE = typeof window !== 'undefined' 
+  ? '' 
+  : (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000');

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../prisma';
-import { getHWID } from '../utils/hwid';
+import { getHWID, getLegacyHWID } from '../utils/hwid';
 
 const SECRET_KEY = process.env.LICENSE_SECRET || 'HMS-SECRET-LICENSE-KEY-2026-XQZ';
 const normalizedSecret = crypto.createHash('sha256').update(SECRET_KEY).digest();
@@ -24,11 +24,18 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
   try {
     const hwid = getHWID();
 
-    // Find the license in the local database.
-    // We do NOT filter by HWID — the local SQLite file is already machine-bound.
-    // HWID filtering previously caused "Invalid" status when the machine went
-    // offline because MAC-address-based HWID changed with network adapter state.
-    const license = await prisma.license.findFirst();
+    // Prefer the license record bound to THIS machine. The HWID is now a stable
+    // CPU + hostname + OS fingerprint that never changes with network state, so
+    // filtering by it is safe.
+    let license = await prisma.license.findFirst({ where: { hwid } });
+    
+    // Fall back to legacy MAC-based HWID only to seamlessly migrate existing users
+    // who updated their app. This prevents a new installation from stealing the
+    // shipped dev.db license.
+    if (!license) {
+      const legacyHwid = getLegacyHWID();
+      license = await prisma.license.findFirst({ where: { hwid: legacyHwid } });
+    }
 
     if (!license) {
       return res.json({
@@ -42,12 +49,10 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
       });
     }
 
-    // Silently migrate the stored HWID to the current stable HWID if needed
+    // Prepare update data if needed
+    const updateData: any = {};
     if (license.hwid !== hwid) {
-      prisma.license.update({
-        where: { id: license.id },
-        data: { hwid }
-      }).catch(() => { /* non-critical */ });
+      updateData.hwid = hwid;
     }
 
     const now = new Date();
@@ -57,9 +62,16 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
     let status = license.status;
     if (expiryDate < now && status === 'Active') {
       status = 'Expired';
+      updateData.status = 'Expired';
+    }
+
+    // Apply updates safely (awaited)
+    if (Object.keys(updateData).length > 0) {
       await prisma.license.update({
         where: { id: license.id },
-        data: { status: 'Expired' }
+        data: updateData
+      }).catch(err => {
+        console.error('Non-critical error updating license:', err);
       });
     }
 

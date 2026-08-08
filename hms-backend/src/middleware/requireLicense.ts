@@ -1,23 +1,32 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../prisma';
-import { getHWID } from '../utils/hwid';
+import { getHWID, getLegacyHWID } from '../utils/hwid';
 
 export const requireLicense = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const now = new Date();
+    const currentHwid = getHWID();
 
-    // Find the first active, non-expired license in the local database.
-    // We intentionally do NOT filter by HWID here: this is a local SQLite
-    // database stored in AppData on the user's machine — it is already
-    // machine-bound by the filesystem. Filtering by HWID caused the license
-    // to appear missing whenever the machine went offline (because the MAC
-    // address used to compute the HWID changes when network adapters go down).
-    const license = await prisma.license.findFirst({
+    // Prefer the active, non-expired license bound to THIS machine. The HWID is a
+    // stable CPU + hostname + OS fingerprint, so filtering by it is safe.
+    let license = await prisma.license.findFirst({
       where: {
+        hwid: currentHwid,
         status: 'Active',
         expiryDate: { gt: now }
       }
     });
+
+    if (!license) {
+      const legacyHwid = getLegacyHWID();
+      license = await prisma.license.findFirst({
+        where: {
+          hwid: legacyHwid,
+          status: 'Active',
+          expiryDate: { gt: now }
+        }
+      });
+    }
 
     if (!license) {
       return res.status(402).json({
@@ -28,9 +37,8 @@ export const requireLicense = async (req: Request, res: Response, next: NextFunc
 
     // Silently keep the stored HWID in sync with the current stable HWID so
     // the License tab always shows the correct hardware fingerprint.
-    const currentHwid = getHWID();
     if (license.hwid !== currentHwid) {
-      prisma.license.update({
+      await prisma.license.update({
         where: { id: license.id },
         data: { hwid: currentHwid }
       }).catch(() => { /* non-critical, ignore */ });

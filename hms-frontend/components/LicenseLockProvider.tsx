@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import ActivatePage from '@/app/activate/page';
 
 export default function LicenseLockProvider({ children }: { children: React.ReactNode }) {
   const [isValidating, setIsValidating] = useState(true);
+  const [hasLicense, setHasLicense] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -13,6 +15,7 @@ export default function LicenseLockProvider({ children }: { children: React.Reac
     // We don't want to lock or redirect if we are already on the activate page
     if (pathname === '/activate') {
       setIsValidating(false);
+      setHasLicense(false);
       return;
     }
 
@@ -22,22 +25,33 @@ export default function LicenseLockProvider({ children }: { children: React.Reac
       try {
         const data = await api.get<any>('/api/license/status');
         if (data.status !== 'Active') {
-          window.location.href = '/activate';
+          setHasLicense(false);
+          setIsValidating(false);
         } else {
+          setHasLicense(true);
           setIsValidating(false);
         }
       } catch (err) {
-        // If API fails (e.g. 402), the api.ts interceptor will handle it, but we can also fallback here
-        window.location.href = '/activate';
+        setHasLicense(false);
+        setIsValidating(false);
       }
     };
 
+    const handleLicenseExpired = () => {
+      setHasLicense(false);
+      setIsValidating(false);
+    };
+
+    window.addEventListener('license-expired', handleLicenseExpired);
     checkLicense();
     
     // Periodically check license in background (every 5 mins)
     intervalId = setInterval(checkLicense, 5 * 60 * 1000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('license-expired', handleLicenseExpired);
+    };
   }, [pathname, router]);
 
   if (isValidating && pathname !== '/activate') {
@@ -48,6 +62,11 @@ export default function LicenseLockProvider({ children }: { children: React.Reac
         <p className="text-theme-muted font-medium">Validating license...</p>
       </div>
     );
+  }
+
+  // STRICT LOCK: Render the activation page inline instead of relying on browser navigation.
+  if (!hasLicense && pathname !== '/activate') {
+    return <ActivatePage />;
   }
 
   return <>{children}</>;

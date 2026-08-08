@@ -6,13 +6,18 @@ import prisma from './src/prisma';
 
 async function run() {
   const user = await prisma.user.findFirst({ include: { role: true } });
+  if (!user) {
+    console.error('No user found');
+    process.exit(1);
+  }
   
   const envPath = path.join(os.homedir(), 'AppData', 'Roaming', 'hotel-management-system', '.env');
   const env = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
   const secretMatch = env.match(/JWT_SECRET=(.*)/);
   const secret = secretMatch ? secretMatch[1].trim() : 'development_secret_key';
 
-  const token = jwt.sign({ userId: user.id, role: user.role.name }, secret, { expiresIn: '1h' });
+  // @ts-ignore
+  const token = jwt.sign({ userId: user.id, role: user.role?.name || 'admin' }, secret, { expiresIn: '1h' });
 
   const payRes = await fetch('http://localhost:4000/api/payments', {
     method: 'POST',

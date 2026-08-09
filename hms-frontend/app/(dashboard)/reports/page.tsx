@@ -442,14 +442,29 @@ export default function ReportsPage() {
     [revByDept, department],
   );
 
-  const handleExportCSV = () => {
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
-    const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:4000";
-    const a = document.createElement("a");
-    a.href = `${BASE}${API}/export?format=csv&startDate=${range.start}&endDate=${range.end}&token=${token}`;
-    a.download = "report.csv";
-    a.click();
+  const handleExportCSV = async () => {
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("accessToken") : "";
+      const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:4000";
+      const response = await fetch(`${BASE}${API}/export?format=csv&startDate=${range.start}&endDate=${range.end}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error("Failed to export CSV");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "report.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      alert("Error exporting CSV");
+    }
   };
 
     const generatePDF = async () => {

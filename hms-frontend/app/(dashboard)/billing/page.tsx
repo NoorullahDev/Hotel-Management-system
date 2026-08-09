@@ -140,10 +140,38 @@ export default function BillingPage() {
     }
   };
 
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     if (!folioData || !selectedBookingId) return;
-    const token = localStorage.getItem('accessToken');
-    window.open(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000'}/api/invoices/${selectedBookingId}/pdf?token=${token}&t=${Date.now()}`, '_blank');
+    try {
+      const token = localStorage.getItem('accessToken');
+      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
+      const response = await fetch(`${baseUrl}/api/invoices/${selectedBookingId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate PDF');
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const filename = `Invoice-${selectedBookingId.substring(0,8)}.pdf`;
+      
+      if (typeof window !== "undefined" && (window as any).electron?.savePdf) {
+        const success = await (window as any).electron.savePdf(arrayBuffer, filename);
+        if (!success) console.log("PDF save cancelled or failed.");
+      } else {
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Error downloading PDF');
+    }
   };
 
   const filtered = useMemo(() => bookings.filter(b => {

@@ -103,6 +103,7 @@ model Booking {
   subtotal         Decimal
   tax              Decimal
   total            Decimal
+  roomRate         Decimal?
   createdAt        DateTime       @default(now())
   room             Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
   guest            Guest          @relation(fields: [guestId], references: [id], onDelete: Cascade)

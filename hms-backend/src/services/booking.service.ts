@@ -36,7 +36,10 @@ export const createBookingService = async (bookingData: any) => {
     }
 
     const booking = await tx.booking.create({
-      data: bookingData,
+      data: {
+        ...bookingData,
+        roomRate: bookingData.roomRate ?? roomInfo?.price
+      },
       include: {
         guest: true,
         room: { include: { roomType: true } }

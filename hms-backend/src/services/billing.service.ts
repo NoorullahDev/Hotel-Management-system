@@ -23,7 +23,7 @@ export const computeInvoiceLineItems = (booking: any, taxRate: number, taxName: 
   const invoiceItems: { description: string, qty?: number, rate?: Prisma.Decimal, amount: Prisma.Decimal }[] = [];
   
   // Always coerce price to Decimal to handle SQLite returning strings/numbers
-  const roomPrice = new Decimal(booking.room.price.toString());
+  const roomPrice = new Decimal((booking.roomRate || booking.room.price).toString());
   const totalRoomCharges = roomPrice.mul(nights);
   invoiceItems.push({ 
     description: `Room Charges (${nights} nights)`, 

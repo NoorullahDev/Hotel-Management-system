@@ -6,21 +6,38 @@ import { updateRoomStatus as updateRoomStatusService, logRoomMaintenance as logR
 import { getPagination, buildMeta } from '../utils/pagination';
 
 export const getRoomsStatusGrid = asyncHandler(async (req: Request, res: Response) => {
+    const now = new Date();
     const rooms = await prisma.room.findMany({
       orderBy: { number: 'asc' },
-      select: {
-        id: true,
-        number: true,
-        status: true,
+      include: {
+        bookings: {
+          where: {
+            status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+            checkIn: { lte: now },
+            checkOut: { gte: now }
+          }
+        }
       }
     });
 
     const formattedRooms = rooms.map(r => {
       let statusStr = 'Available';
-      if (r.status === 'OCCUPIED') statusStr = 'Occupied';
-      if (r.status === 'RESERVED') statusStr = 'Reserved';
-      if (r.status === 'CLEANING') statusStr = 'Cleaning';
-      if (r.status === 'MAINTENANCE') statusStr = 'Maintenance';
+      
+      if (r.status === 'MAINTENANCE') {
+        statusStr = 'Maintenance';
+      } else if (r.status === 'CLEANING') {
+        statusStr = 'Cleaning';
+      } else if (r.bookings && r.bookings.length > 0) {
+        const activeBooking = r.bookings.find(b => b.status === 'CHECKED_IN') || r.bookings[0];
+        if (activeBooking.status === 'CHECKED_IN') {
+           statusStr = 'Occupied';
+        } else {
+           statusStr = 'Reserved';
+        }
+      } else {
+        if (r.status === 'OCCUPIED') statusStr = 'Occupied';
+        else if (r.status === 'RESERVED') statusStr = 'Reserved';
+      }
 
       return {
         id: r.id,
@@ -49,7 +66,7 @@ export const getRoomsAvailability = asyncHandler(async (req: Request, res: Respo
     }
 
     const where: any = {
-      status: { notIn: ['MAINTENANCE', 'RESERVED', 'OCCUPIED'] }, // Only truly available rooms (not reserved, occupied, or in maintenance)
+      status: { notIn: ['MAINTENANCE'] }, // Only exclude rooms that are physically out of order
       bookings: {
         none: {
           status: { in: ['CONFIRMED', 'CHECKED_IN'] },
@@ -98,9 +115,6 @@ export const getRooms = asyncHandler(async (req: Request, res: Response) => {
 
     const where: any = {};
 
-    if (status && status !== 'All Status') {
-      where.status = (status as string).toUpperCase();
-    }
     if (roomTypeId && roomTypeId !== 'All Types') {
       where.roomTypeId = roomTypeId;
     }
@@ -114,35 +128,77 @@ export const getRooms = asyncHandler(async (req: Request, res: Response) => {
       ];
     }
 
-    const [rooms, totalCount, total, statGroups] = await Promise.all([
+    const now = new Date();
+
+    const [allRooms, totalDb] = await Promise.all([
       prisma.room.findMany({
         where,
-        include: { roomType: true },
+        include: { 
+          roomType: true,
+          bookings: {
+            where: {
+              status: { in: ['CONFIRMED', 'CHECKED_IN'] },
+              checkIn: { lte: now },
+              checkOut: { gte: now }
+            }
+          }
+        },
         orderBy: { number: 'asc' },
-        skip,
-        take: limitNumber,
       }),
-      prisma.room.count({ where }),
       prisma.room.count(),
-      prisma.room.groupBy({ by: ['status'], _count: { _all: true } }),
     ]);
 
-    // Collapse status counts from groupBy (1 query vs 5 separate counts)
-    const byStatus = Object.fromEntries(
-      statGroups.map(g => [g.status, g._count._all])
-    );
+    // Compute dynamic status for all matching rooms
+    const processedRooms = allRooms.map(r => {
+      let computedStatus = 'AVAILABLE';
+      if (r.status === 'MAINTENANCE') {
+        computedStatus = 'MAINTENANCE';
+      } else if (r.status === 'CLEANING') {
+        computedStatus = 'CLEANING';
+      } else if (r.bookings && r.bookings.length > 0) {
+        const activeBooking = r.bookings.find(b => b.status === 'CHECKED_IN') || r.bookings[0];
+        computedStatus = activeBooking.status === 'CHECKED_IN' ? 'OCCUPIED' : 'RESERVED';
+      } else {
+        if (r.status === 'OCCUPIED') computedStatus = 'OCCUPIED';
+        else if (r.status === 'RESERVED') computedStatus = 'RESERVED';
+      }
+
+      const { bookings, ...roomData } = r;
+      return { ...roomData, status: computedStatus };
+    });
+
+    // Apply status filter in memory
+    let filteredRooms = processedRooms;
+    if (status && status !== 'All Status') {
+      const targetStatus = (status as string).toUpperCase();
+      filteredRooms = processedRooms.filter(r => r.status === targetStatus);
+    }
+
+    // Pagination
+    const paginatedRooms = filteredRooms.slice(skip, skip + limitNumber);
+
+    // Compute stats
+    const statsObj = {
+      total: totalDb,
+      available: 0,
+      occupied: 0,
+      reserved: 0,
+      cleaning: 0,
+      maintenance: 0,
+    };
+
+    processedRooms.forEach(r => {
+      if (r.status === 'AVAILABLE') statsObj.available++;
+      else if (r.status === 'OCCUPIED') statsObj.occupied++;
+      else if (r.status === 'RESERVED') statsObj.reserved++;
+      else if (r.status === 'CLEANING') statsObj.cleaning++;
+      else if (r.status === 'MAINTENANCE') statsObj.maintenance++;
+    });
 
     res.json({
-      data: rooms,
-      meta: buildMeta(totalCount, pageNumber, limitNumber),
-      stats: {
-        total,
-        available:   byStatus['AVAILABLE']   ?? 0,
-        occupied:    byStatus['OCCUPIED']     ?? 0,
-        reserved:    byStatus['RESERVED']     ?? 0,
-        cleaning:    byStatus['CLEANING']     ?? 0,
-        maintenance: byStatus['MAINTENANCE']  ?? 0,
-      },
+      data: paginatedRooms,
+      meta: buildMeta(filteredRooms.length, pageNumber, limitNumber),
+      stats: statsObj,
     });
   });
 

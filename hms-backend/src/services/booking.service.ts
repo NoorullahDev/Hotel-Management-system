@@ -14,10 +14,10 @@ export const createBookingService = async (bookingData: any) => {
       throw new Error(`Room ${bookingData.roomId} is currently in maintenance and cannot be booked.`);
     }
 
-    // 2. Write to room early to acquire write lock, preventing concurrent overlap race conditions
+    // 2. Write to room early to acquire write lock without altering actual status, preventing concurrent overlap race conditions
     await tx.room.update({
       where: { id: bookingData.roomId },
-      data: { status: 'OCCUPIED' }
+      data: { id: bookingData.roomId }
     });
 
     // 3. Check for overlapping bookings
@@ -49,7 +49,10 @@ export const createBookingService = async (bookingData: any) => {
     return booking;
   }, { isolationLevel: 'Serializable' });
 
-  emitToHotel('main', 'room:status_changed', { roomId: bookingData.roomId, newStatus: 'OCCUPIED' });
+  const now = new Date();
+  if (bookingData.checkIn <= now && bookingData.checkOut >= now) {
+    emitToHotel('main', 'room:status_changed', { roomId: bookingData.roomId, newStatus: 'RESERVED' });
+  }
 
   // Emit real-time event
   const checkInStr = newBooking.checkIn.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

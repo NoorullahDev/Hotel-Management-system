@@ -50,10 +50,11 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
     const prevEnd   = new Date(start.getTime() - 1);
     const prevStart = new Date(prevEnd.getTime() - diffMs);
 
-    const [revCur, revPrev, totalRooms, occupiedRooms, reservedRooms, bookCur, bookPrev, feedCur, feedPrev] =
+    const [revCur, revPrev, lifetimeRev, totalRooms, occupiedRooms, reservedRooms, bookCur, bookPrev, feedCur, feedPrev] =
       await Promise.all([
         prisma.payment.aggregate({ _sum: { amount: true }, where: { createdAt: { gte: start, lte: end } } }),
         prisma.payment.aggregate({ _sum: { amount: true }, where: { createdAt: { gte: prevStart, lte: prevEnd } } }),
+        prisma.payment.aggregate({ _sum: { amount: true } }),
         prisma.room.count(),
         prisma.room.count({ where: { status: 'OCCUPIED' } }),
         prisma.room.count({ where: { status: 'RESERVED' } }),
@@ -104,6 +105,7 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
 
     res.json({
       totalRevenue,
+      lifetimeRevenue:    lifetimeRev._sum.amount?.toNumber() ?? 0,
       revenueDelta:       revDelta === 'New' || revDelta === '—' ? revDelta : parseFloat(revDelta),
       occupancyRate:      parseFloat(occupancyRate),
       occupancyDelta:     null, // Requires historical snapshot data not currently tracked

@@ -4,7 +4,7 @@ import prisma from '../prisma';
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import fs from 'fs';
-import { getTaxSettings } from '../utils/settings';
+import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
 import { formatServiceDescription, computeInvoiceLineItems } from '../services/billing.service';
 
 // 80mm thermal receipt: ~226 points width
@@ -95,19 +95,13 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
     }
 
     // ── Fetch Hotel Information from Settings (single query via utility) ────────────
-    const [allSettings, legacySettings] = await Promise.all([
-      prisma.setting.findMany(),
-      prisma.hotelSettings.findFirst(),
-    ]);
-
-    const settingMap = Object.fromEntries(allSettings.map(s => [s.key, s.value]));
-
-    const hotelName      = (settingMap['hotelName']      as string) || legacySettings?.name        || 'Your Hotel Name';
-    const hotelAddress   = (settingMap['hotelAddress']   as string) || '';
-    const contactNumber  = (settingMap['contactNumber']  as string) || '';
-    const email          = (settingMap['email']          as string) || '';
-    const hotelLogo      = (settingMap['hotelLogo']      as string) || '';
-    const currencySymbol = (settingMap['currencySymbol'] as string) || legacySettings?.currency || 'Rs.';
+    const settings = await getPublicSettingsData();
+    const hotelName      = settings.hotelName;
+    const hotelAddress   = settings.hotelAddress || '';
+    const contactNumber  = settings.contactNumber || '';
+    const email          = settings.email || '';
+    const hotelLogo      = settings.hotelLogo || '';
+    const currencySymbol = settings.currencySymbol;
 
     // Tax via shared utility (cached — avoids repeated DB round-trips on busy invoice periods)
     const tax    = await getTaxSettings();

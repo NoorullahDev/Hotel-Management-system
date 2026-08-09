@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Eye, Edit2, PenTool, CheckCircle2, Lock, Sparkles, RefreshCcw } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 interface Props {
   room: any;
@@ -23,6 +25,42 @@ const getStatusConfig = (status: string) => {
 export default function RoomCard({ room, onView, onEdit, onMaint, onStatusClick }: Props) {
   const statusConfig = getStatusConfig(room.status);
   const StatusIcon = statusConfig.icon;
+
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editedPrice, setEditedPrice] = useState(room.price?.toString() || '');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isEditingPrice && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditingPrice]);
+
+  const updatePriceMutation = useMutation({
+    mutationFn: (newPrice: number) => api.patch(`/api/rooms/${room.id}`, { price: newPrice }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roomsList'] });
+    }
+  });
+
+  const handlePriceSubmit = () => {
+    setIsEditingPrice(false);
+    const numPrice = parseFloat(editedPrice);
+    if (!isNaN(numPrice) && numPrice !== room.price) {
+      updatePriceMutation.mutate(numPrice);
+    } else {
+      setEditedPrice(room.price?.toString() || '');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handlePriceSubmit();
+    if (e.key === 'Escape') {
+      setIsEditingPrice(false);
+      setEditedPrice(room.price?.toString() || '');
+    }
+  };
 
   return (
     <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-hover hover:border-theme-strong transition-all duration-300 flex flex-col group relative">
@@ -50,7 +88,30 @@ export default function RoomCard({ room, onView, onEdit, onMaint, onStatusClick 
           
           <div className="flex items-center justify-between text-xs text-theme-muted-light mb-6">
             <span>Floor {room.floor}</span>
-            <span className="font-medium text-theme-muted-light">Rs. {room.price?.toLocaleString()} / night</span>
+            {isEditingPrice ? (
+              <div className="flex items-center gap-1">
+                <span>Rs.</span>
+                <input 
+                  ref={inputRef}
+                  type="number"
+                  value={editedPrice}
+                  onChange={(e) => setEditedPrice(e.target.value)}
+                  onBlur={handlePriceSubmit}
+                  onKeyDown={handleKeyDown}
+                  className="w-16 bg-theme-main border border-theme-border rounded px-1 py-0.5 text-xs text-theme-text focus:outline-none focus:border-primary no-spinners"
+                  style={{ MozAppearance: 'textfield' }}
+                />
+                <span>/ night</span>
+              </div>
+            ) : (
+              <span 
+                className="font-medium text-theme-muted-light cursor-pointer hover:text-primary transition-colors border-b border-dashed border-transparent hover:border-primary"
+                onClick={(e) => { e.stopPropagation(); setIsEditingPrice(true); setEditedPrice(room.price?.toString() || ''); }}
+                title="Click to edit price"
+              >
+                Rs. {room.price?.toLocaleString()} / night
+              </span>
+            )}
           </div>
         </div>
 
@@ -97,3 +158,4 @@ export default function RoomCard({ room, onView, onEdit, onMaint, onStatusClick 
     </div>
   );
 }
+

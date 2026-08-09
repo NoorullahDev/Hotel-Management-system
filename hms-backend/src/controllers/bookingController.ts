@@ -10,6 +10,12 @@ import { generateInvoice, computeInvoiceLineItems } from '../services/billing.se
 import { getPagination, buildMeta } from '../utils/pagination';
 import { emitToHotel } from '../socket';
 
+function calculateEstimatedBookingTotal(checkIn: Date, checkOut: Date, roomPrice: number, taxRatePct: number) {
+  const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / 86400000));
+  const estSubtotal = roomPrice * nights;
+  const estTax = estSubtotal * (taxRatePct / 100);
+  return { estSubtotal, estTax, estTotal: estSubtotal + estTax, nights };
+}
 export const getBookings = asyncHandler(async (req: Request, res: Response) => {
     const {
       limit: limitStr,
@@ -128,11 +134,10 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
       
       let displayAmount = b.total.toNumber();
       if (displayAmount === 0) {
-        const nights = Math.max(1, Math.ceil((b.checkOut.getTime() - b.checkIn.getTime()) / 86400000));
         const roomPrice = Number(b.room.price || 0);
-        const estSubtotal = roomPrice * nights;
         const taxRate = settings?.taxRate !== undefined ? Number(settings.taxRate) : 10;
-        displayAmount = estSubtotal + (estSubtotal * (taxRate / 100));
+        const est = calculateEstimatedBookingTotal(b.checkIn, b.checkOut, roomPrice, taxRate);
+        displayAmount = est.estTotal;
       }
 
       return {
@@ -231,13 +236,13 @@ export const createBooking = asyncHandler(async (req: AuthRequest, res: Response
     let estTax = tax;
     let estTotal = total;
     if (total === undefined || total === 0 || total === null) {
-       const nights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86400000));
        const room = await prisma.room.findUnique({ where: { id: roomId } });
        const taxSettings = await getTaxSettings();
        const roomPrice = Number(room?.price || 0);
-       estSubtotal = roomPrice * nights;
-       estTax = estSubtotal * taxSettings.rate;
-       estTotal = estSubtotal + estTax;
+       const est = calculateEstimatedBookingTotal(checkInDate, checkOutDate, roomPrice, taxSettings.pct);
+       estSubtotal = est.estSubtotal;
+       estTax = est.estTax;
+       estTotal = est.estTotal;
     }
 
     // Create booking. This will trigger the PostgreSQL exclusion constraint if there's an overlap.

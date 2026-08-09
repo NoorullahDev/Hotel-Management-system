@@ -1068,7 +1068,19 @@ export default function ReportsPage() {
         {/* ── Summary Cards ─────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-4 w-full">
           <SummaryCard
-            title="Total Revenue"
+            title="Lifetime Revenue"
+            value={
+              summary
+                ? formatCurrency(summary.lifetimeRevenue, currencySymbol)
+                : "PKR 0.00"
+            }
+            delta="—"
+            icon={DollarSign}
+            color="text-blue-400"
+            bg="bg-blue-500/10"
+          />
+          <SummaryCard
+            title="Period Revenue"
             value={
               summary
                 ? formatCurrency(summary.totalRevenue, currencySymbol)
@@ -1076,8 +1088,8 @@ export default function ReportsPage() {
             }
             delta={summary?.revenueDelta ?? 0}
             icon={DollarSign}
-            color="text-blue-400"
-            bg="bg-blue-500/10"
+            color="text-emerald-400"
+            bg="bg-emerald-500/10"
           />
           <SummaryCard
             title="Occupancy Rate"

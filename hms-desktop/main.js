@@ -43,7 +43,7 @@ function startBackend() {
     }
     
     // Setup Uploads Path
-    const uploadsPath = path.join(userDataPath, 'uploads');
+    const uploadsPath = app.isPackaged ? path.join(userDataPath, 'uploads') : path.join(backendDir, 'uploads');
     if (!fs.existsSync(uploadsPath)) {
       fs.mkdirSync(uploadsPath, { recursive: true });
     }

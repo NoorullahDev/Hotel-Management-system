@@ -6,8 +6,9 @@ import prisma from '../prisma';
 
 /** Parse date range from query params, defaulting to last 7 days. */
 function getDateRange(req: Request): { start: Date; end: Date } {
-  const end   = req.query.endDate   ? new Date(req.query.endDate   as string) : new Date();
-  const start = req.query.startDate ? new Date(req.query.startDate as string) : new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
+  // Append T00:00:00 so JS parses it in the server's local time instead of UTC midnight
+  const end   = req.query.endDate   ? new Date((req.query.endDate as string) + 'T00:00:00') : new Date();
+  const start = req.query.startDate ? new Date((req.query.startDate as string) + 'T00:00:00') : new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
   

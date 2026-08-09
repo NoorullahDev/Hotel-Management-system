@@ -94,7 +94,9 @@ export default function AddRoomModal({ onClose }: Props) {
             <label className="text-xs font-semibold text-theme-muted-light">Floor *</label>
             <input 
               required
-              type="number" 
+              type="text" 
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={formData.floor}
               onChange={(e) => setFormData({...formData, floor: e.target.value})}
               className="bg-theme-card shadow-soft border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
@@ -121,7 +123,9 @@ export default function AddRoomModal({ onClose }: Props) {
             <label className="text-xs font-semibold text-theme-muted-light">Price per Night (Rs.) *</label>
             <input 
               required
-              type="number" 
+              type="text" 
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={formData.price}
               onChange={(e) => setFormData({...formData, price: e.target.value})}
               className="bg-theme-card shadow-soft border border-theme-border rounded-xl px-4 py-2.5 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"

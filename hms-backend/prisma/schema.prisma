@@ -90,8 +90,8 @@ model Room {
 }
 
 model Booking {
-  id               String        @id @default(uuid())
-  bookingType      String        @default("LOCAL")
+  id               String         @id @default(uuid())
+  bookingType      String         @default("LOCAL")
   guestId          String
   roomId           String
   checkIn          DateTime
@@ -226,13 +226,13 @@ model HousekeepingTask {
 }
 
 model ServiceOrder {
-  id          String      @id @default(uuid())
-  orderNumber String      @unique @default(uuid())
+  id          String             @id @default(uuid())
+  orderNumber String             @unique @default(uuid())
   bookingId   String
-  status      String      @default("COMPLETED")
-  totalAmount Decimal     @default(0)
-  createdAt   DateTime    @default(now())
-  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  status      String             @default("COMPLETED")
+  totalAmount Decimal            @default(0)
+  createdAt   DateTime           @default(now())
+  booking     Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   items       ServiceOrderItem[]
 
   @@index([createdAt])
@@ -356,8 +356,8 @@ model License {
 
 model HousekeepingService {
   id        String   @id @default(uuid())
-  category  String   // Will be set to 'Laundry', 'Pantry', etc.
-  name      String   
+  category  String // Will be set to 'Laundry', 'Pantry', etc.
+  name      String
   price     Decimal
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

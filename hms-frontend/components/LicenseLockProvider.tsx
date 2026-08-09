@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import ActivatePage from '@/app/activate/page';
 
 export default function LicenseLockProvider({ children }: { children: React.ReactNode }) {
   const [isValidating, setIsValidating] = useState(true);
@@ -54,6 +53,12 @@ export default function LicenseLockProvider({ children }: { children: React.Reac
     };
   }, [pathname, router]);
 
+  useEffect(() => {
+    if (!isValidating && !hasLicense && pathname !== '/activate') {
+      router.replace('/activate');
+    }
+  }, [isValidating, hasLicense, pathname, router]);
+
   if (isValidating && pathname !== '/activate') {
     // Full screen loading state while checking license
     return (
@@ -64,9 +69,8 @@ export default function LicenseLockProvider({ children }: { children: React.Reac
     );
   }
 
-  // STRICT LOCK: Render the activation page inline instead of relying on browser navigation.
   if (!hasLicense && pathname !== '/activate') {
-    return <ActivatePage />;
+    return null; // Return empty while redirecting
   }
 
   return <>{children}</>;

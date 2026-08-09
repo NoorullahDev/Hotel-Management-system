@@ -87,7 +87,7 @@ app.use(express.static(frontendPath, { extensions: ['html'] }));
 app.use((req, res, next) => {
   if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api')) {
     if (req.path === '/' || req.path === '') {
-      return res.sendFile(path.join(frontendPath, 'login.html'));
+      return res.redirect('/login');
     }
 
     const cleanPath = req.path.replace(/^\//, '').replace(/\/$/, '');

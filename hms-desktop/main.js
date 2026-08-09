@@ -32,10 +32,10 @@ function startBackend() {
     const userDataPath = app.getPath('userData');
     
     // Setup SQLite DB Path
-    const dbPath = path.join(userDataPath, 'dev.db');
-    // If db doesn't exist, copy initial dev.db
+    const dbPath = path.join(userDataPath, 'database.sqlite');
+    // If db doesn't exist, copy initial database
     if (!fs.existsSync(dbPath)) {
-      const initialDb = path.join(backendDir, 'prisma', 'dev.db');
+      const initialDb = path.join(backendDir, 'prisma', 'init.db');
       if (fs.existsSync(initialDb)) {
         fs.copyFileSync(initialDb, dbPath);
         console.log('Copied initial SQLite database to AppData:', dbPath);
@@ -76,6 +76,7 @@ function startBackend() {
       cwd: backendDir,
       env: { 
         ...process.env, 
+        NODE_ENV: app.isPackaged ? 'production' : 'development',
         PORT: String(BACKEND_PORT), 
         DATABASE_URL: dbUrl,
         UPLOADS_DIR: uploadsPath,

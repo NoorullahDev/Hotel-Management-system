@@ -45,11 +45,13 @@
       },
       {
         "from": "../hms-backend/node_modules",
-        "to": "hms-backend/node_modules"
+        "to": "hms-backend/node_modules",
+        "filter": ["**/*", "!@types", "!typescript", "!ts-node", "!nodemon", "!vitest", "!@vitest"]
       },
       {
         "from": "../hms-backend/prisma",
-        "to": "hms-backend/prisma"
+        "to": "hms-backend/prisma",
+        "filter": ["**/*", "!dev.db"]
       },
       {
         "from": "../hms-backend/uploads",

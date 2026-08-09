@@ -4,15 +4,15 @@ import prisma from '../prisma';
 import { getPublicSettingsData } from '../utils/settings';
 
 export const getSummary = asyncHandler(async (req: Request, res: Response) => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const now = new Date();
+    // Calculate UTC boundaries that correspond to the local day to match how dates are created (YYYY-MM-DD -> UTC Midnight)
+    const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
+    const todayEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
 
     const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    yesterdayStart.setUTCDate(yesterdayStart.getUTCDate() - 1);
     const yesterdayEnd = new Date(todayEnd);
-    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+    yesterdayEnd.setUTCDate(yesterdayEnd.getUTCDate() - 1);
 
     const [
       checkIns,

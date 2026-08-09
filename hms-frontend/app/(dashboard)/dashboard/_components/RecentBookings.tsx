@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import GuestDetailsSidebar from '../../_components/GuestDetailsSidebar';
 
 const fetchRecentBookings = async () => {
-  const json = await api.get<any>('/api/bookings?limit=6&sort=recent');
+  const json = await api.get<any>('/api/bookings?limit=15&sort=recent');
   return json.data || [];
 };
 
@@ -63,8 +63,8 @@ export default function RecentBookings() {
     const handleBookingCreated = (newBooking: any) => {
       queryClient.setQueryData(['recentBookings'], (oldData: any) => {
         if (!oldData) return [newBooking];
-        // Prepend and keep max 6 (since limit is 6 in the query)
-        return [newBooking, ...oldData].slice(0, 6);
+        // Prepend and keep max 15 (since limit is 15 in the query)
+        return [newBooking, ...oldData].slice(0, 15);
       });
     };
 

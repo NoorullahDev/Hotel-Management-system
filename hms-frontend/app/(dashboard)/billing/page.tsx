@@ -13,21 +13,21 @@ export default function BillingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-  
+
   const searchParams = useSearchParams();
   const initialBookingId = searchParams ? searchParams.get('bookingId') : null;
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(initialBookingId);
   const [folioData, setFolioData] = useState<any>(null);
   const [loadingFolio, setLoadingFolio] = useState(false);
   const { currencySymbol, currency, taxRate, hotelName, hotelAddress, contactNumber, hotelLogo } = useGlobalSettings();
-  
+
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [discountAmount, setDiscountAmount] = useState<string>('');
 
-  
+
   const [revenueView, setRevenueView] = useState<'Daily' | 'Weekly' | 'Monthly'>('Daily');
-  
+
   const [kpiData, setKpiData] = useState({
     totalRevenue: 0,
     dailyRevenue: 0,
@@ -46,21 +46,21 @@ export default function BillingPage() {
       setLoading(true);
       const params = new URLSearchParams({ limit: '200' });
       if (startDate) params.set('startDate', startDate);
-      if (endDate)   params.set('endDate', endDate);
+      if (endDate) params.set('endDate', endDate);
 
       const json = await api.get<{ data: any[], stats: any }>(`/api/bookings?${params}`);
-      
+
       const data = json.data || [];
       const stats = json.stats || {};
 
       setKpiData({
-         totalRevenue: stats.totalRevenue || 0,
-         dailyRevenue: stats.dailyRevenue || 0,
-         monthlyRevenue: stats.monthlyRevenue || 0,
-         yearlyRevenue: stats.yearlyRevenue || 0,
-         pendingPayments: stats.pendingPayments || 0,
-         totalInvoices: stats.totalInvoices || 0,
-         paidBills: stats.paidBills || 0
+        totalRevenue: stats.totalRevenue || 0,
+        dailyRevenue: stats.dailyRevenue || 0,
+        monthlyRevenue: stats.monthlyRevenue || 0,
+        yearlyRevenue: stats.yearlyRevenue || 0,
+        pendingPayments: stats.pendingPayments || 0,
+        totalInvoices: stats.totalInvoices || 0,
+        paidBills: stats.paidBills || 0
       });
 
       // Show ALL bookings for full historical access (CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED)
@@ -100,7 +100,7 @@ export default function BillingPage() {
 
   const handleProcessPayment = async () => {
     if (!folioData) return;
-    
+
     let processAmount = paymentAmount ? parseFloat(paymentAmount) : (folioData.totalAmount - folioData.paidAmount);
     if (processAmount <= 0) {
       alert('Invoice is already fully paid.');
@@ -113,7 +113,7 @@ export default function BillingPage() {
         amount: processAmount,
         method: paymentMethod
       });
-      
+
       // Refresh folio
       const newData = await api.get<any>(`/api/bookings/${folioData.bookingId}/folio`);
       setFolioData(newData);
@@ -148,7 +148,7 @@ export default function BillingPage() {
     const response = await fetch(`${baseUrl}/api/invoices/${selectedBookingId}/pdf`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    
+
     if (!response.ok) throw new Error('Failed to generate PDF');
     return await response.arrayBuffer();
   };
@@ -157,7 +157,7 @@ export default function BillingPage() {
     const date = new Date().toLocaleDateString();
     const checkIn = new Date(folioData.checkIn).toLocaleDateString();
     const checkOut = new Date(folioData.checkOut).toLocaleDateString();
-    
+
     const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
     const logoImg = hotelLogo ? `<img src="${baseUrl}${hotelLogo}" style="max-width: 80px; max-height: 80px; margin: 0 auto 10px auto; display: block;" />` : '';
 
@@ -210,7 +210,7 @@ export default function BillingPage() {
         <div class="dashed"></div>
         
         <div class="row">
-          <span>Invoice #: INV-${folioData.bookingId.substring(0,8).toUpperCase()}</span>
+          <span>Invoice #: INV-${folioData.bookingId.substring(0, 8).toUpperCase()}</span>
           <span>Date: ${date}</span>
         </div>
         <div class="row">
@@ -266,9 +266,8 @@ export default function BillingPage() {
         </div>
         
         <div class="footer">
-          <div>Software is developed by Eagle Nest Creation</div>
-          <div>Contact: 03405545150</div>
-        </div>
+          <div>Software Provided By EagleNest Creations (0346-4451505)</div>
+                 </div>
       </body>
       </html>
     `;
@@ -279,11 +278,11 @@ export default function BillingPage() {
 
     try {
       const htmlContent = generateHtmlInvoice();
-      
+
       if (typeof window !== "undefined" && (window as any).electron?.printHtml) {
         const result = await (window as any).electron.printHtml(htmlContent);
         if (result === 'failed') {
-           alert('Failed to print the invoice. Ensure a printer is installed and set as the default printer.');
+          alert('Failed to print the invoice. Ensure a printer is installed and set as the default printer.');
         }
       } else {
         alert('Thermal printing is only supported in the Desktop Application.');
@@ -298,9 +297,9 @@ export default function BillingPage() {
     try {
       const arrayBuffer = await fetchPdfBuffer();
       if (!arrayBuffer) return;
-      
-      const filename = `Invoice-${selectedBookingId?.substring(0,8)}.pdf`;
-      
+
+      const filename = `Invoice-${selectedBookingId?.substring(0, 8)}.pdf`;
+
       if (typeof window !== "undefined" && (window as any).electron?.savePdf) {
         const success = await (window as any).electron.savePdf(arrayBuffer, filename);
         if (!success) console.log("PDF save cancelled or failed.");
@@ -344,9 +343,9 @@ export default function BillingPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search by invoice, guest, room number..." 
+            <input
+              type="text"
+              placeholder="Search by invoice, guest, room number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-64 bg-theme-card shadow-soft border border-theme-border rounded-xl py-2.5 pl-10 pr-4 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -368,11 +367,11 @@ export default function BillingPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {[
-          { title: 'Daily Revenue', value: `${currencySymbol} ${(kpiData.dailyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Today', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { title: 'Monthly Revenue', value: `${currencySymbol} ${(kpiData.monthlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'This Month', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { title: 'Yearly Revenue', value: `${currencySymbol} ${(kpiData.yearlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'This Year', icon: Landmark, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-          { title: 'Pending Payments', value: `${currencySymbol} ${(kpiData.pendingPayments || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'In-House Guests', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-          { title: 'Paid Bills', value: `${currencySymbol} ${(kpiData.paidBills || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: 'Lifetime Total', icon: CheckCircle2, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+          { title: 'Daily Revenue', value: `${currencySymbol} ${(kpiData.dailyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, sub: 'Today', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { title: 'Monthly Revenue', value: `${currencySymbol} ${(kpiData.monthlyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, sub: 'This Month', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+          { title: 'Yearly Revenue', value: `${currencySymbol} ${(kpiData.yearlyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, sub: 'This Year', icon: Landmark, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+          { title: 'Pending Payments', value: `${currencySymbol} ${(kpiData.pendingPayments || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, sub: 'In-House Guests', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+          { title: 'Paid Bills', value: `${currencySymbol} ${(kpiData.paidBills || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, sub: 'Lifetime Total', icon: CheckCircle2, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
         ].map((kpi, i) => (
           <div key={i} className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center gap-3">
@@ -390,16 +389,16 @@ export default function BillingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 flex-1">
-        
+
         {/* Left Column */}
         <div className="flex flex-col gap-6">
-          
+
           {/* Invoice List */}
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex-1 flex flex-col min-h-[400px]">
             <div className="p-4 border-b border-theme-border flex items-center justify-between">
               <h2 className="text-sm font-bold text-theme-text">Invoice List</h2>
               <div className="flex items-center gap-2 relative">
-                <button 
+                <button
                   onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
                   className="flex items-center gap-2 text-xs text-theme-muted hover:text-theme-text px-3 py-1.5 border border-theme-border rounded-lg transition-colors"
                 >
@@ -441,77 +440,76 @@ export default function BillingPage() {
                   ) : filtered.map((b) => {
                     const isForeign = b.bookingType === 'FOREIGN' || b.guestType === 'FOREIGN';
                     return (
-                    <tr 
-                      key={b.id} 
-                      className={`cursor-pointer transition-colors ${selectedBookingId === b.rawId ? 'bg-blue-500/10 border-l-2 border-blue-500' : 'hover:bg-theme-hover/50'}`}
-                      onClick={() => setSelectedBookingId(b.rawId)}
-                    >
-                      <td className="p-3 text-xs font-medium text-blue-400">INV-{b.id}</td>
-                      <td className="p-3 text-xs font-semibold text-theme-text">
-                        {!isForeign ? b.guest : <span className="text-theme-muted-light font-normal">—</span>}
-                      </td>
-                      <td className="p-3 text-xs font-semibold text-theme-text">
-                        {isForeign ? b.guest : <span className="text-theme-muted-light font-normal">—</span>}
-                      </td>
-                      <td className="p-3 text-xs text-theme-muted-light">
-                        <div className="flex items-center gap-2">
-                          {isForeign ? (
-                            <><Crown size={14} className="text-amber-500" /> Foreign Guest</>
-                          ) : (
-                            <><User size={14} className="text-blue-400" /> Booking</>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 text-xs text-theme-muted-light">{b.room}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
-                          b.status === 'CHECKED_OUT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
-                        }`}>
-                          {b.status === 'CHECKED_OUT' ? 'Paid' : 'Pending'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
+                      <tr
+                        key={b.id}
+                        className={`cursor-pointer transition-colors ${selectedBookingId === b.rawId ? 'bg-blue-500/10 border-l-2 border-blue-500' : 'hover:bg-theme-hover/50'}`}
+                        onClick={() => setSelectedBookingId(b.rawId)}
+                      >
+                        <td className="p-3 text-xs font-medium text-blue-400">INV-{b.id}</td>
+                        <td className="p-3 text-xs font-semibold text-theme-text">
+                          {!isForeign ? b.guest : <span className="text-theme-muted-light font-normal">—</span>}
+                        </td>
+                        <td className="p-3 text-xs font-semibold text-theme-text">
+                          {isForeign ? b.guest : <span className="text-theme-muted-light font-normal">—</span>}
+                        </td>
+                        <td className="p-3 text-xs text-theme-muted-light">
+                          <div className="flex items-center gap-2">
+                            {isForeign ? (
+                              <><Crown size={14} className="text-amber-500" /> Foreign Guest</>
+                            ) : (
+                              <><User size={14} className="text-blue-400" /> Booking</>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-xs text-theme-muted-light">{b.room}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${b.status === 'CHECKED_OUT' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
+                            }`}>
+                            {b.status === 'CHECKED_OUT' ? 'Paid' : 'Pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
                   })}
                 </tbody>
               </table>
             </div>
           </div>
-          
+
           {/* Revenue Overview (Mocked per design) */}
           <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl p-4 h-64 shrink-0 flex flex-col justify-between">
-             <div className="flex items-center justify-between mb-2">
-               <h2 className="text-sm font-bold text-theme-text">Revenue Overview</h2>
-               <div className="flex bg-theme-main rounded-lg p-1">
-                 <button onClick={() => setRevenueView('Daily')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Daily' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Daily</button>
-                 <button onClick={() => setRevenueView('Weekly')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Weekly' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Weekly</button>
-                 <button onClick={() => setRevenueView('Monthly')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Monthly' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Monthly</button>
-               </div>
-             </div>
-             
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                {/* Simplified Line Chart Mock based on view */}
-                <div className="flex flex-col border-r border-theme-border pr-4 justify-center">
-                  <span className="text-xs text-theme-muted">{revenueView} Revenue</span>
-                  <span className="text-2xl font-bold text-theme-text mb-2">
-                     {currencySymbol} {
-                       revenueView === 'Daily' 
-                         ? (kpiData.dailyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
-                         : revenueView === 'Weekly'
-                         ? (kpiData.monthlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
-                         : (kpiData.yearlyRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})
-                     }
-                  </span>
-                  <p className="text-xs text-theme-muted-light mt-2">Check the Reports & Analytics tab for detailed breakdowns.</p>
-                </div>
-
-                {/* Simplified Yearly Bar Chart Mock */}
-                <div className="flex flex-col justify-center">
-                  <span className="text-xs text-theme-muted">Lifetime Revenue</span>
-                  <span className="text-2xl font-bold text-theme-text mb-2">{currencySymbol} {(kpiData.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                  <p className="text-xs text-theme-muted-light mt-2">Total revenue collected from all past bookings.</p>
-                </div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-bold text-theme-text">Revenue Overview</h2>
+              <div className="flex bg-theme-main rounded-lg p-1">
+                <button onClick={() => setRevenueView('Daily')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Daily' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Daily</button>
+                <button onClick={() => setRevenueView('Weekly')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Weekly' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Weekly</button>
+                <button onClick={() => setRevenueView('Monthly')} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${revenueView === 'Monthly' ? 'bg-blue-600 text-white' : 'text-theme-muted hover:text-theme-text'}`}>Monthly</button>
               </div>
+            </div>
+
+            <div className="flex-1 grid grid-cols-2 gap-4">
+              {/* Simplified Line Chart Mock based on view */}
+              <div className="flex flex-col border-r border-theme-border pr-4 justify-center">
+                <span className="text-xs text-theme-muted">{revenueView} Revenue</span>
+                <span className="text-2xl font-bold text-theme-text mb-2">
+                  {currencySymbol} {
+                    revenueView === 'Daily'
+                      ? (kpiData.dailyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                      : revenueView === 'Weekly'
+                        ? (kpiData.monthlyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                        : (kpiData.yearlyRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  }
+                </span>
+                <p className="text-xs text-theme-muted-light mt-2">Check the Reports & Analytics tab for detailed breakdowns.</p>
+              </div>
+
+              {/* Simplified Yearly Bar Chart Mock */}
+              <div className="flex flex-col justify-center">
+                <span className="text-xs text-theme-muted">Lifetime Revenue</span>
+                <span className="text-2xl font-bold text-theme-text mb-2">{currencySymbol} {(kpiData.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                <p className="text-xs text-theme-muted-light mt-2">Total revenue collected from all past bookings.</p>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -519,12 +517,12 @@ export default function BillingPage() {
         {/* Right Column - Folio Details */}
         <div className="bg-theme-card shadow-soft border border-theme-border rounded-2xl flex flex-col">
           {loadingFolio ? (
-             <div className="flex-1 flex items-center justify-center text-theme-muted">Loading details...</div>
+            <div className="flex-1 flex items-center justify-center text-theme-muted">Loading details...</div>
           ) : !folioData ? (
-             <div className="flex-1 flex items-center justify-center text-theme-muted-light text-sm">Select an invoice from the list to view details</div>
+            <div className="flex-1 flex items-center justify-center text-theme-muted-light text-sm">Select an invoice from the list to view details</div>
           ) : (
             <div className="flex flex-col h-full">
-              
+
               {/* Hotel Branding */}
               <div className="p-5 text-center border-b border-theme-border bg-theme-main/50">
                 <h2 className="text-base font-bold text-theme-text uppercase tracking-wider">{hotelName}</h2>
@@ -535,13 +533,12 @@ export default function BillingPage() {
               <div className="p-5 border-b border-theme-border">
                 <div className="flex justify-between items-start mb-4">
                   <h2 className="text-lg font-bold text-blue-400">INV-{folioData.bookingId.substring(0, 8).toUpperCase()}</h2>
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                    folioData.status === 'CHECKED_OUT' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'
-                  }`}>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold ${folioData.status === 'CHECKED_OUT' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'
+                    }`}>
                     {folioData.status === 'CHECKED_OUT' ? 'Paid' : 'Pending'}
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-xs text-theme-muted-light block mb-1">Guest Name</span>
@@ -585,7 +582,7 @@ export default function BillingPage() {
                     ))}
                   </tbody>
                 </table>
-                
+
                 <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-theme-border/50">
                   <div className="flex justify-between text-xs">
                     <span className="text-theme-muted">Sub Total</span>
@@ -599,18 +596,18 @@ export default function BillingPage() {
                     <span className="text-theme-muted">Discount</span>
                     <div className="flex items-center gap-2">
                       {folioData.hasInvoice ? (
-                         <span className="text-green-400 font-medium">-{currencySymbol} {folioData.discount.toFixed(2)}</span>
+                        <span className="text-green-400 font-medium">-{currencySymbol} {folioData.discount.toFixed(2)}</span>
                       ) : (
-                         <input 
-                           type="number"
-                           placeholder="0.00"
-                           value={discountAmount}
-                           onChange={(e) => {
-                             setDiscountAmount(e.target.value);
-                             handleGenerateInvoice(selectedBookingId as string);
-                           }}
-                           className="w-20 bg-theme-main border border-theme-border rounded px-2 py-0.5 text-right text-green-400 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                         />
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={discountAmount}
+                          onChange={(e) => {
+                            setDiscountAmount(e.target.value);
+                            handleGenerateInvoice(selectedBookingId as string);
+                          }}
+                          className="w-20 bg-theme-main border border-theme-border rounded px-2 py-0.5 text-right text-green-400 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                        />
                       )}
                     </div>
                   </div>
@@ -639,14 +636,13 @@ export default function BillingPage() {
                       { id: 'Bank', icon: Landmark },
                       { id: 'Wallet', icon: Wallet },
                     ].map(pm => (
-                      <button 
+                      <button
                         key={pm.id}
                         onClick={() => setPaymentMethod(pm.id)}
-                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-colors ${
-                          paymentMethod === pm.id 
-                            ? 'bg-blue-600/20 border-blue-500 text-blue-400' 
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-colors ${paymentMethod === pm.id
+                            ? 'bg-blue-600/20 border-blue-500 text-blue-400'
                             : 'bg-theme-main border-theme-border text-theme-muted hover:border-theme-strong'
-                        }`}
+                          }`}
                       >
                         <pm.icon size={18} />
                         <span className="text-[10px] font-medium">{pm.id}</span>
@@ -656,16 +652,16 @@ export default function BillingPage() {
 
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light text-xs font-bold">{currencySymbol}</span>
-                       <input 
-                         type="number" 
-                         value={paymentAmount}
-                         onChange={(e) => setPaymentAmount(e.target.value)}
-                         className="w-full bg-theme-main border border-theme-border rounded-xl py-3 pl-10 pr-4 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
-                         placeholder={`Remaining: ${(folioData.totalAmount - folioData.paidAmount).toFixed(2)}`}
-                       />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light text-xs font-bold">{currencySymbol}</span>
+                      <input
+                        type="number"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className="w-full bg-theme-main border border-theme-border rounded-xl py-3 pl-10 pr-4 text-sm text-theme-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:border-primary"
+                        placeholder={`Remaining: ${(folioData.totalAmount - folioData.paidAmount).toFixed(2)}`}
+                      />
                     </div>
-                    <button 
+                    <button
                       onClick={handleProcessPayment}
                       className="px-6 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-theme-text font-medium rounded-xl transition-all shadow-lg shadow-blue-900/20 whitespace-nowrap"
                     >
@@ -675,7 +671,7 @@ export default function BillingPage() {
 
                   <div className="mt-3 flex flex-col items-center justify-center gap-3 bg-blue-500/5 rounded-xl border border-blue-500/20 p-3">
                     <p className="text-xs text-theme-muted text-center">After full payment is collected, complete checkout to finalise the invoice.</p>
-                    <button 
+                    <button
                       onClick={handleCheckoutAndGenerateInvoice}
                       className="w-full py-3 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-green-900/20"
                     >
@@ -687,30 +683,30 @@ export default function BillingPage() {
 
               {/* Actions */}
               <div className="p-5 border-t border-theme-border mt-4">
-                 <h3 className="text-xs font-bold text-theme-muted uppercase tracking-wider mb-3">Quick Actions</h3>
-                 
-                 {/* Document Buttons */}
-                 <div className="flex gap-2">
-                   <button 
-                     onClick={handlePrintInvoice}
-                     className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
-                   >
-                     <Printer size={14} /> Print Invoice
-                   </button>
-                   <button 
-                     onClick={handleExportPdf}
-                     className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
-                   >
-                     <Download size={14} /> Export PDF
-                   </button>
-                 </div>
+                <h3 className="text-xs font-bold text-theme-muted uppercase tracking-wider mb-3">Quick Actions</h3>
+
+                {/* Document Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePrintInvoice}
+                    className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Printer size={14} /> Print Invoice
+                  </button>
+                  <button
+                    onClick={handleExportPdf}
+                    className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Download size={14} /> Export PDF
+                  </button>
+                </div>
               </div>
 
             </div>
           )}
         </div>
       </div>
-      
+
 
     </div>
   );

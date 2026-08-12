@@ -3,6 +3,11 @@ import prisma from '../prisma';
 import { getHWID, getLegacyHWID } from '../utils/hwid';
 
 export const requireLicense = async (req: Request, res: Response, next: NextFunction) => {
+  // Skip license enforcement in development — only enforce in packaged/production builds
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
   try {
     const now = new Date();
     const currentHwid = getHWID();

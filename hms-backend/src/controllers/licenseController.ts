@@ -24,17 +24,28 @@ export const getLicenseStatus = async (req: Request, res: Response) => {
   try {
     const hwid = getHWID();
 
-    // Prefer the license record bound to THIS machine. The HWID is now a stable
-    // CPU + hostname + OS fingerprint that never changes with network state, so
-    // filtering by it is safe.
+    // Prefer the license record bound to THIS machine.
     let license = await prisma.license.findFirst({ where: { hwid } });
     
     // Fall back to legacy MAC-based HWID only to seamlessly migrate existing users
-    // who updated their app. This prevents a new installation from stealing the
-    // shipped dev.db license.
     if (!license) {
       const legacyHwid = getLegacyHWID();
       license = await prisma.license.findFirst({ where: { hwid: legacyHwid } });
+    }
+
+    // In development: if no real license is found, silently return Active
+    // so the app never shows the license lock screen during development.
+    // If a real license IS found, fall through and show real data below.
+    if (!license && process.env.NODE_ENV !== 'production') {
+      return res.json({
+        status: 'Active',
+        hwid,
+        licenseKey: 'DEV-MODE',
+        activationDate: new Date(),
+        expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        daysRemaining: 365,
+        lastRenewed: new Date()
+      });
     }
 
     if (!license) {

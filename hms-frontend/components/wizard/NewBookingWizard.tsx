@@ -182,7 +182,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   //  UI RENDER FUNCTIONS
   // ═══════════════════════════════════════════════════════════════════════
 
-  const inp = 'w-full bg-[#0d1527] border border-[#1e2a45] rounded-lg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors';
+  const inp = 'w-full bg-theme-main border border-theme-border rounded-lg px-3 py-2.5 text-sm text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors';
   const lbl = 'text-[11px] font-semibold text-theme-muted mb-1.5 block';
 
   // ── 4-step stepper (always shows all 4) ────────────────────────────────
@@ -204,7 +204,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
                   isCompleted ? 'bg-primary text-white shadow-md shadow-primary/30'
                   : isActive ? 'bg-primary text-white shadow-lg shadow-primary/40 ring-4 ring-primary/20'
-                  : 'bg-[#0d1527] border-2 border-[#1e2a45] text-theme-muted-light'
+                  : 'bg-theme-main border-2 border-theme-border text-theme-muted-light'
                 }`}>
                   {isCompleted ? <Check size={18} strokeWidth={3} /> : s.num}
                 </div>
@@ -214,7 +214,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
               </div>
               {idx < 3 && (
                 <div className={`flex-1 h-[2px] mt-5 mx-1 rounded-full transition-colors duration-300 ${
-                  step > s.num ? 'bg-primary' : 'bg-[#1e2a45]'
+                  step > s.num ? 'bg-primary' : 'bg-theme-border'
                 }`} />
               )}
             </React.Fragment>
@@ -234,7 +234,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
       </div>
 
       {/* Card */}
-      <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-5 flex-1">
+      <div className="bg-theme-card border border-theme-border rounded-xl p-5 flex-1">
         {/* Guest search */}
         <div className="relative mb-3">
           <div className="relative">
@@ -244,11 +244,11 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
               placeholder="Search existing guest by name, phone, or email…"
               value={guestSearch}
               onChange={e => setGuestSearch(e.target.value)}
-              className="w-full bg-[#0d1527] border border-primary/40 rounded-lg pl-9 pr-3 py-2 text-sm text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="w-full bg-theme-main border border-primary/40 rounded-lg pl-9 pr-3 py-2 text-sm text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
           {showDropdown && guestResults.length > 0 && (
-            <div className="absolute top-full left-0 w-full mt-1 bg-[#111b30] border border-[#1e2a45] rounded-xl shadow-2xl z-20 overflow-hidden max-h-48 overflow-y-auto">
+            <div className="absolute top-full left-0 w-full mt-1 bg-theme-card border border-theme-border rounded-xl shadow-2xl z-20 overflow-hidden max-h-48 overflow-y-auto">
               {guestResults.map(g => (
                 <div
                   key={g.id}
@@ -256,7 +256,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     setGuestDetails({ id: g.id, name: g.name, phone: g.phone||'', email: g.email||'', idType: g.idType||(bookingType==='FOREIGN'?'Passport':'CNIC'), idNumber: g.idNumber||'', nationality: g.nationality||(bookingType==='FOREIGN'?'':'Pakistani'), city: g.city||'' });
                     setGuestSearch(''); setShowDropdown(false);
                   }}
-                  className="px-4 py-2.5 hover:bg-primary/10 cursor-pointer border-b border-[#1e2a45] last:border-0 transition-colors"
+                  className="px-4 py-2.5 hover:bg-primary/10 cursor-pointer border-b border-theme-border last:border-0 transition-colors"
                 >
                   <div className="font-semibold text-theme-text text-sm">{g.name}</div>
                   <div className="text-[10px] text-theme-muted-light">{g.phone || g.email || 'No contact info'}</div>
@@ -267,9 +267,9 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         </div>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-px bg-[#1e2a45] flex-1" />
+          <div className="h-px bg-theme-border flex-1" />
           <span className="text-[10px] text-theme-muted-light font-medium tracking-wider">OR ENTER NEW</span>
-          <div className="h-px bg-[#1e2a45] flex-1" />
+          <div className="h-px bg-theme-border flex-1" />
         </div>
 
         {/* Form grid */}
@@ -312,7 +312,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         </div>
 
         {/* Additional guests */}
-        <div className="mt-4 pt-3 border-t border-[#1e2a45]">
+        <div className="mt-4 pt-3 border-t border-theme-border">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold text-theme-muted">Additional Guests (Friends / Family)</span>
             <button onClick={() => setAdditionalGuests([...additionalGuests, { name:'', relationship:'', phone:'', idNumber:'' }])} className="text-[11px] text-primary hover:text-primary/80 font-semibold transition-colors">
@@ -322,17 +322,17 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           {additionalGuests.length > 0 && (
             <div className="space-y-2 mt-3 pr-1">
               {additionalGuests.map((ag, idx) => (
-                <div key={idx} className="flex items-center gap-2 bg-[#0d1527] border border-[#1e2a45] rounded-lg p-2 relative">
+                <div key={idx} className="flex items-center gap-2 bg-theme-main border border-theme-border rounded-lg p-2 relative">
                   <button onClick={() => setAdditionalGuests(additionalGuests.filter((_,i)=>i!==idx))} className="absolute top-1.5 right-1.5 text-theme-muted-light hover:text-red-400 transition-colors">
                     <X size={12} />
                   </button>
-                  <input type="text" placeholder="Name" value={ag.name} onChange={e=>{const a=[...additionalGuests];a[idx].name=e.target.value;setAdditionalGuests(a);}} className="flex-1 bg-transparent border border-[#1e2a45] rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
-                  <select value={ag.relationship||''} onChange={e=>{const a=[...additionalGuests];a[idx].relationship=e.target.value;setAdditionalGuests(a);}} className="bg-transparent border border-[#1e2a45] rounded px-2 py-1 text-[11px] text-theme-text focus:outline-none appearance-none w-24">
+                  <input type="text" placeholder="Name" value={ag.name} onChange={e=>{const a=[...additionalGuests];a[idx].name=e.target.value;setAdditionalGuests(a);}} className="flex-1 bg-transparent border border-theme-border rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
+                  <select value={ag.relationship||''} onChange={e=>{const a=[...additionalGuests];a[idx].relationship=e.target.value;setAdditionalGuests(a);}} className="bg-transparent border border-theme-border rounded px-2 py-1 text-[11px] text-theme-text focus:outline-none appearance-none w-24">
                     <option value="" disabled>Relation</option>
                     <option>Spouse</option><option>Child</option><option>Parent</option><option>Friend</option><option>Other</option>
                   </select>
-                  <input type="text" placeholder="Phone" value={ag.phone} onChange={e=>{const a=[...additionalGuests];a[idx].phone=e.target.value;setAdditionalGuests(a);}} className="w-28 bg-transparent border border-[#1e2a45] rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
-                  <input type="text" placeholder="CNIC/Passport" value={ag.idNumber} onChange={e=>{const a=[...additionalGuests];a[idx].idNumber=e.target.value;setAdditionalGuests(a);}} className="w-32 bg-transparent border border-[#1e2a45] rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
+                  <input type="text" placeholder="Phone" value={ag.phone} onChange={e=>{const a=[...additionalGuests];a[idx].phone=e.target.value;setAdditionalGuests(a);}} className="w-28 bg-transparent border border-theme-border rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
+                  <input type="text" placeholder="CNIC/Passport" value={ag.idNumber} onChange={e=>{const a=[...additionalGuests];a[idx].idNumber=e.target.value;setAdditionalGuests(a);}} className="w-32 bg-transparent border border-theme-border rounded px-2 py-1 text-[11px] text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:border-primary" />
                 </div>
               ))}
             </div>
@@ -350,7 +350,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         <h3 className="text-base font-bold text-theme-text">Stay Details</h3>
       </div>
 
-      <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-5">
+      <div className="bg-theme-card border border-theme-border rounded-xl p-5">
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
           <div>
             <label className={lbl}>Check-in Date *</label>
@@ -415,13 +415,13 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
             placeholder="Search by room number or type…"
             value={roomSearchQuery}
             onChange={e => setRoomSearchQuery(e.target.value)}
-            className="w-full bg-[#0d1527] border border-[#1e2a45] rounded-lg pl-9 pr-3 py-2 text-xs text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary"
+            className="w-full bg-theme-main border border-theme-border rounded-lg pl-9 pr-3 py-2 text-xs text-theme-text placeholder:text-theme-muted-light/40 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary"
           />
         </div>
         <select
           value={stayDetails.roomType}
           onChange={e => setStayDetails({ ...stayDetails, roomType: e.target.value })}
-          className="bg-[#0d1527] border border-[#1e2a45] rounded-lg px-3 py-2 text-xs text-theme-text focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary appearance-none cursor-pointer min-w-[140px]"
+          className="bg-theme-main border border-theme-border rounded-lg px-3 py-2 text-xs text-theme-text focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary appearance-none cursor-pointer min-w-[140px]"
         >
           <option value="">All Room Types</option>
           {roomTypes.map(rt => <option key={rt.id} value={rt.id}>{rt.name}</option>)}
@@ -429,7 +429,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         <select
           value={floorFilter}
           onChange={e => setFloorFilter(e.target.value)}
-          className="bg-[#0d1527] border border-[#1e2a45] rounded-lg px-3 py-2 text-xs text-theme-text focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary appearance-none cursor-pointer min-w-[110px]"
+          className="bg-theme-main border border-theme-border rounded-lg px-3 py-2 text-xs text-theme-text focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary appearance-none cursor-pointer min-w-[110px]"
         >
           <option value="">All Floors</option>
           {uniqueFloors.map(f => <option key={f} value={f}>Floor {f}</option>)}
@@ -455,10 +455,10 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
               <div
                 key={room.id}
                 onClick={() => setSelectedRoomId(room.id)}
-                className={`flex-shrink-0 w-[190px] bg-[#0b1120] border-2 rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
+                className={`flex-shrink-0 w-[190px] bg-theme-card border-2 rounded-xl overflow-hidden cursor-pointer transition-all duration-200 ${
                   selectedRoomId === room.id
                     ? 'border-primary shadow-lg shadow-primary/20'
-                    : 'border-[#1e2a45] hover:border-primary/40'
+                    : 'border-theme-border hover:border-primary/40'
                 }`}
               >
                 {/* Room image */}
@@ -489,7 +489,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     <div className="flex items-center gap-1"><BedDouble size={12} /><span className="text-[10px]">2</span></div>
                     <div className="flex items-center gap-1"><Users size={12} /><span className="text-[10px]">1</span></div>
                   </div>
-                  <div className="mt-2.5 pt-2 border-t border-[#1e2a45]">
+                  <div className="mt-2.5 pt-2 border-t border-theme-border">
                     <span className="text-sm font-bold text-theme-text">{currencySymbol} {room.price?.toLocaleString()}</span>
                     <span className="text-[10px] text-theme-muted-light"> /night</span>
                   </div>
@@ -519,17 +519,17 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           </div>
           <h3 className="text-2xl font-bold text-theme-text mb-1">Booking Created!</h3>
           <p className="text-sm text-theme-muted mb-6">The reservation has been successfully confirmed.</p>
-          <div className="w-full max-w-sm bg-[#0b1120] border border-[#1e2a45] rounded-xl p-5 text-left space-y-3">
+          <div className="w-full max-w-sm bg-theme-card border border-theme-border rounded-xl p-5 text-left space-y-3">
             <div>
               <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Booking ID</p>
               <p className="text-sm font-mono font-bold text-theme-text">{bookingResult.id?.substring(0, 13).toUpperCase()}</p>
             </div>
-            <div className="h-px bg-[#1e2a45]" />
+            <div className="h-px bg-theme-border" />
             <div>
               <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Room</p>
               <p className="text-sm font-semibold text-theme-text">Room {bookingResult.room?.number || selectedRoom?.number} — {bookingResult.room?.roomType?.name || selectedRoom?.roomType?.name}</p>
             </div>
-            <div className="h-px bg-[#1e2a45]" />
+            <div className="h-px bg-theme-border" />
             <div>
               <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Status</p>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${bookingResult.status === 'CHECKED_IN' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
@@ -537,11 +537,11 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                 {bookingResult.status === 'CHECKED_IN' ? 'Checked In' : 'Reserved'}
               </span>
             </div>
-            <div className="h-px bg-[#1e2a45]" />
+            <div className="h-px bg-theme-border" />
             <div className="text-[11px] text-theme-muted-light">
               <span className="font-semibold">Check-In:</span> {stayDetails.checkIn}&nbsp;|&nbsp;<span className="font-semibold">Check-Out:</span> {stayDetails.checkOut}
             </div>
-            <div className="pt-1 border-t border-[#1e2a45]/50">
+            <div className="pt-1 border-t border-theme-border/50">
               <p className="text-[10px] text-theme-muted-light italic">💳 Payment will be collected at Check-Out.</p>
             </div>
           </div>
@@ -560,8 +560,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
 
         <div className="grid grid-cols-4 gap-4 flex-1">
           {/* Guest Information */}
-          <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#1e2a45]">
+          <div className="bg-theme-card border border-theme-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-theme-border">
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span className="text-[11px] font-bold text-theme-text">Guest Information</span>
             </div>
@@ -575,8 +575,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           </div>
 
           {/* Stay Information */}
-          <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#1e2a45]">
+          <div className="bg-theme-card border border-theme-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-theme-border">
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span className="text-[11px] font-bold text-theme-text">Stay Information</span>
             </div>
@@ -589,8 +589,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           </div>
 
           {/* Room Information */}
-          <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#1e2a45]">
+          <div className="bg-theme-card border border-theme-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-theme-border">
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span className="text-[11px] font-bold text-theme-text">Room Information</span>
             </div>
@@ -619,8 +619,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           </div>
 
           {/* Price Summary */}
-          <div className="bg-[#0b1120] border border-[#1e2a45] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#1e2a45]">
+          <div className="bg-theme-card border border-theme-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-theme-border">
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span className="text-[11px] font-bold text-theme-text">Price Summary</span>
             </div>
@@ -637,7 +637,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                 <span className="text-theme-muted-light">Discount</span>
                 <span className="text-theme-text font-medium">{currencySymbol} 0</span>
               </div>
-              <div className="h-px bg-[#1e2a45] mt-1" />
+              <div className="h-px bg-theme-border mt-1" />
               <div className="flex justify-between items-center pt-1">
                 <span className="text-xs font-bold text-theme-text">Total Amount</span>
                 <span className="text-lg font-bold text-green-400">{currencySymbol} {Math.round(estimatedTotal).toLocaleString()}</span>
@@ -658,10 +658,10 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative bg-[#0e1726] border border-[#1e2a45] rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '85vh' }}>
+      <div className="relative bg-theme-main border border-theme-border rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '85vh' }}>
 
         {/* ── Header ─── */}
-        <div className="flex-shrink-0 px-7 py-4 border-b border-[#1e2a45] flex items-center justify-between">
+        <div className="flex-shrink-0 px-7 py-4 border-b border-theme-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Calendar size={16} className="text-primary" />
@@ -676,7 +676,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         </div>
 
         {/* ── Stepper ─── */}
-        <div className="flex-shrink-0 px-7 pt-5 pb-4 border-b border-[#1e2a45]/60">
+        <div className="flex-shrink-0 px-7 pt-5 pb-4 border-b border-theme-border/60">
           {renderStepper()}
         </div>
 
@@ -697,16 +697,16 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
         </div>
 
         {/* ── Footer ─── */}
-        <div className="flex-shrink-0 px-7 py-4 border-t border-[#1e2a45] flex items-center justify-between">
+        <div className="flex-shrink-0 px-7 py-4 border-t border-theme-border flex items-center justify-between">
           {/* Left: Cancel / Back */}
           <div>
             {step === 1 && (
-              <button onClick={onClose} className="flex items-center gap-2 px-5 py-2.5 border border-[#1e2a45] text-theme-muted-light hover:text-theme-text hover:bg-white/5 rounded-lg text-sm font-medium transition-colors">
+              <button onClick={onClose} className="flex items-center gap-2 px-5 py-2.5 border border-theme-border text-theme-muted-light hover:text-theme-text hover:bg-white/5 rounded-lg text-sm font-medium transition-colors">
                 Cancel
               </button>
             )}
             {step > 1 && !bookingResult && (
-              <button onClick={() => setStep(step - 1)} className="flex items-center gap-2 px-5 py-2.5 border border-[#1e2a45] text-theme-muted-light hover:text-theme-text hover:bg-white/5 rounded-lg text-sm font-medium transition-colors">
+              <button onClick={() => setStep(step - 1)} className="flex items-center gap-2 px-5 py-2.5 border border-theme-border text-theme-muted-light hover:text-theme-text hover:bg-white/5 rounded-lg text-sm font-medium transition-colors">
                 <ChevronLeft size={15} /> Back
               </button>
             )}

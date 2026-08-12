@@ -23,23 +23,56 @@ function getBackendPath() {
   return path.join(getBasePath(), 'hms-backend');
 }
 
+// Kill any stale process still listening on the backend port (e.g. an orphaned
+// backend left over from a previous run that was force-closed). Otherwise the
+// fresh backend crashes with EADDRINUSE and the app silently falls back to it.
+function killProcessOnPort(port) {
+  return new Promise((resolve) => {
+    try {
+      const { exec } = require('child_process');
+      exec(`netstat -ano | findstr :${port} | findstr LISTENING`, (err, stdout) => {
+        if (err || !stdout) return resolve();
+        const pids = new Set();
+        stdout.trim().split(/\r?\n/).forEach((line) => {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && /^\d+$/.test(pid)) pids.add(pid);
+        });
+        pids.forEach((pid) => {
+          try { process.kill(Number(pid), 'SIGTERM'); } catch (e) { /* already gone */ }
+        });
+        console.log(`Cleaned up ${pids.size} stale process(es) on port ${port}.`);
+        setTimeout(resolve, 800);
+      });
+    } catch (e) {
+      resolve();
+    }
+  });
+}
+
 // Start the backend server
 function startBackend() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const backendDir = getBackendPath();
     console.log(`Starting backend from: ${backendDir}`);
 
     const userDataPath = app.getPath('userData');
     
     // Setup SQLite DB Path
-    const dbPath = path.join(userDataPath, 'database.sqlite');
-    // If db doesn't exist, copy initial database
-    if (!fs.existsSync(dbPath)) {
-      const initialDb = path.join(backendDir, 'prisma', 'init.db');
-      if (fs.existsSync(initialDb)) {
-        fs.copyFileSync(initialDb, dbPath);
-        console.log('Copied initial SQLite database to AppData:', dbPath);
+    let dbPath;
+    if (app.isPackaged) {
+      dbPath = path.join(userDataPath, 'database.sqlite');
+      // If db doesn't exist, copy initial database
+      if (!fs.existsSync(dbPath)) {
+        const initialDb = path.join(backendDir, 'prisma', 'init.db');
+        if (fs.existsSync(initialDb)) {
+          fs.copyFileSync(initialDb, dbPath);
+          console.log('Copied initial SQLite database to AppData:', dbPath);
+        }
       }
+    } else {
+      dbPath = path.join(backendDir, 'prisma', 'dev.db');
+      console.log('Using development SQLite database:', dbPath);
     }
     
     // Setup Uploads Path
@@ -67,6 +100,9 @@ function startBackend() {
     }
     
     const dbUrl = `file:${dbPath}`;
+
+    // Free the port first so a stale backend from a previous run can't block startup
+    await killProcessOnPort(BACKEND_PORT);
 
     // Use node server.js for production, npx ts-node for dev
     const command = app.isPackaged ? 'node' : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
@@ -157,6 +193,97 @@ function createWindow() {
       return true;
     } catch (err) {
       console.error('Failed to save PDF:', err);
+      return false;
+    }
+  });
+
+  // Handle PDF printing
+  ipcMain.handle('print-pdf', async (event, buffer) => {
+    try {
+      const tempPath = path.join(app.getPath('temp'), `print_${Date.now()}.pdf`);
+      fs.writeFileSync(tempPath, Buffer.from(buffer));
+
+      const printWindow = new BrowserWindow({ 
+        show: false,
+        width: 900,
+        height: 700,
+        parent: mainWindow || undefined,
+        webPreferences: { plugins: true }
+      });
+
+      printWindow.loadURL(`file://${tempPath}`);
+
+      return new Promise((resolve) => {
+        printWindow.webContents.on('did-finish-load', () => {
+          setTimeout(async () => {
+             try {
+               printWindow.show();
+               printWindow.focus();
+               await printWindow.webContents.print({ silent: false });
+               printWindow.close();
+               fs.unlink(tempPath, () => {});
+               if (mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+               resolve('printed');
+             } catch (error) {
+               console.error('Print failed:', error);
+               printWindow.close();
+               fs.unlink(tempPath, () => {});
+               if (mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+               resolve(String(error && error.message || error).includes('cancel') ? 'cancelled' : 'failed');
+             }
+          }, 500);
+        });
+      });
+    } catch (err) {
+      console.error('Failed to print PDF:', err);
+      return false;
+    }
+  });
+
+  // Handle HTML printing
+  ipcMain.handle('print-html', async (event, htmlContent) => {
+    try {
+      const tempPath = path.join(app.getPath('temp'), `print_${Date.now()}.html`);
+      fs.writeFileSync(tempPath, htmlContent, 'utf8');
+
+      const printWindow = new BrowserWindow({ 
+        show: false,
+        width: 900,
+        height: 700,
+        parent: mainWindow || undefined,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+      });
+
+      printWindow.loadURL(`file:///${tempPath.replace(/\\/g, '/')}`);
+
+      return new Promise((resolve) => {
+        printWindow.webContents.on('did-finish-load', () => {
+          // Wait 500ms for images/fonts to render — identical to how print-pdf works
+          setTimeout(async () => {
+            try {
+              printWindow.show();
+              printWindow.focus();
+              await printWindow.webContents.print({ 
+                silent: false, 
+                printBackground: true,
+                margins: { marginType: 'none' } 
+              });
+              printWindow.close();
+              fs.unlink(tempPath, () => {});
+              if (mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+              resolve('printed');
+            } catch (error) {
+              console.error('Print HTML failed:', error);
+              printWindow.close();
+              fs.unlink(tempPath, () => {});
+              if (mainWindow && !mainWindow.isDestroyed()) mainWindow.focus();
+              resolve(String(error && error.message || error).includes('cancel') ? 'cancelled' : 'failed');
+            }
+          }, 500);
+        });
+      });
+    } catch (err) {
+      console.error('Failed to print HTML:', err);
       return false;
     }
   });

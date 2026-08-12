@@ -19,11 +19,12 @@ export default function BillingPage() {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(initialBookingId);
   const [folioData, setFolioData] = useState<any>(null);
   const [loadingFolio, setLoadingFolio] = useState(false);
-  const { currencySymbol, currency, taxRate, hotelName, hotelAddress } = useGlobalSettings();
+  const { currencySymbol, currency, taxRate, hotelName, hotelAddress, contactNumber, hotelLogo } = useGlobalSettings();
   
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [discountAmount, setDiscountAmount] = useState<string>('');
+
   
   const [revenueView, setRevenueView] = useState<'Daily' | 'Weekly' | 'Monthly'>('Daily');
   
@@ -140,19 +141,165 @@ export default function BillingPage() {
     }
   };
 
-  const downloadPdf = async () => {
+  const fetchPdfBuffer = async () => {
+    if (!folioData || !selectedBookingId) return null;
+    const token = localStorage.getItem('accessToken');
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
+    const response = await fetch(`${baseUrl}/api/invoices/${selectedBookingId}/pdf`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) throw new Error('Failed to generate PDF');
+    return await response.arrayBuffer();
+  };
+
+  const generateHtmlInvoice = () => {
+    const date = new Date().toLocaleDateString();
+    const checkIn = new Date(folioData.checkIn).toLocaleDateString();
+    const checkOut = new Date(folioData.checkOut).toLocaleDateString();
+    
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
+    const logoImg = hotelLogo ? `<img src="${baseUrl}${hotelLogo}" style="max-width: 80px; max-height: 80px; margin: 0 auto 10px auto; display: block;" />` : '';
+
+    let itemsHtml = '';
+    folioData.items.forEach((item: any) => {
+      itemsHtml += `
+        <div class="row">
+          <span class="desc">${item.description}</span>
+          <span class="amt">${currencySymbol} ${Number(item.amount).toFixed(2)}</span>
+        </div>
+      `;
+    });
+
+    return `
+      <html>
+      <head>
+        <title>Invoice</title>
+        <style>
+          @page { margin: 0; size: 80mm auto; }
+          body { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
+            font-size: 12px; 
+            color: #000;
+            margin: 0 auto;
+            padding: 10px;
+            width: 80mm;
+            max-width: 100%;
+            box-sizing: border-box;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+          .desc { flex: 1; padding-right: 10px; }
+          .amt { text-align: right; white-space: nowrap; }
+          .dashed { border-bottom: 1px dashed #000; margin: 10px 0; }
+          .solid { border-bottom: 1px solid #000; margin: 8px 0; }
+          .hotel-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+          .footer { font-size: 10px; margin-top: 30px; text-align: center; }
+          .logo { max-width: 80px; max-height: 80px; margin: 0 auto 10px auto; display: block; }
+        </style>
+      </head>
+      <body>
+        ${hotelLogo ? `<img src="${baseUrl}${hotelLogo}" class="logo" />` : ''}
+        <div class="center">
+          <div class="hotel-name">${hotelName || 'EagleNest Hotel'}</div>
+          ${hotelAddress ? `<div>${hotelAddress}</div>` : ''}
+          ${contactNumber ? `<div>Tel: ${contactNumber}</div>` : ''}
+        </div>
+        
+        <div class="dashed"></div>
+        
+        <div class="row">
+          <span>Invoice #: INV-${folioData.bookingId.substring(0,8).toUpperCase()}</span>
+          <span>Date: ${date}</span>
+        </div>
+        <div class="row">
+          <span>Guest: ${folioData.guestName}</span>
+          <span>Room: ${folioData.roomNumber}</span>
+        </div>
+        <div class="row">
+          <span>Check-in: ${checkIn}</span>
+          <span>Check-out: ${checkOut}</span>
+        </div>
+        
+        <div class="dashed"></div>
+        
+        <div class="row bold" style="margin-bottom: 6px;">
+          <span class="desc">Description</span>
+          <span class="amt">Amount</span>
+        </div>
+        
+        ${itemsHtml}
+        
+        <div class="solid"></div>
+        
+        <div class="row bold">
+          <span>Subtotal:</span>
+          <span>${currencySymbol} ${folioData.subTotal.toFixed(2)}</span>
+        </div>
+        <div class="row">
+          <span>Tax (${folioData.taxPct ?? taxRate}%):</span>
+          <span>${currencySymbol} ${folioData.taxAmount.toFixed(2)}</span>
+        </div>
+        ${folioData.discount ? `
+        <div class="row">
+          <span>Discount:</span>
+          <span>-${currencySymbol} ${folioData.discount.toFixed(2)}</span>
+        </div>` : ''}
+        
+        <div class="solid"></div>
+        
+        <div class="row bold" style="font-size: 14px;">
+          <span>Grand Total:</span>
+          <span>${currencySymbol} ${folioData.totalAmount.toFixed(2)}</span>
+        </div>
+        
+        <div class="row" style="margin-top: 6px;">
+          <span>Paid:</span>
+          <span>${currencySymbol} ${folioData.paidAmount.toFixed(2)}</span>
+        </div>
+        
+        <div class="dashed" style="margin-top: 15px;"></div>
+        
+        <div class="center" style="margin-top: 10px;">
+          Thank you for your stay!
+        </div>
+        
+        <div class="footer">
+          <div>Software is developed by Eagle Nest Creation</div>
+          <div>Contact: 03405545150</div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintInvoice = async () => {
     if (!folioData || !selectedBookingId) return;
+
     try {
-      const token = localStorage.getItem('accessToken');
-      const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
-      const response = await fetch(`${baseUrl}/api/invoices/${selectedBookingId}/pdf`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const htmlContent = generateHtmlInvoice();
       
-      if (!response.ok) throw new Error('Failed to generate PDF');
+      if (typeof window !== "undefined" && (window as any).electron?.printHtml) {
+        const result = await (window as any).electron.printHtml(htmlContent);
+        if (result === 'failed') {
+           alert('Failed to print the invoice. Ensure a printer is installed and set as the default printer.');
+        }
+      } else {
+        alert('Thermal printing is only supported in the Desktop Application.');
+      }
+    } catch (error) {
+      console.error('Error printing invoice:', error);
+      alert('Error connecting to thermal printer');
+    }
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      const arrayBuffer = await fetchPdfBuffer();
+      if (!arrayBuffer) return;
       
-      const arrayBuffer = await response.arrayBuffer();
-      const filename = `Invoice-${selectedBookingId.substring(0,8)}.pdf`;
+      const filename = `Invoice-${selectedBookingId?.substring(0,8)}.pdf`;
       
       if (typeof window !== "undefined" && (window as any).electron?.savePdf) {
         const success = await (window as any).electron.savePdf(arrayBuffer, filename);
@@ -169,8 +316,8 @@ export default function BillingPage() {
         window.URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Error downloading PDF');
+      console.error('Error exporting PDF:', error);
+      alert('Error exporting PDF');
     }
   };
 
@@ -539,19 +686,19 @@ export default function BillingPage() {
               )}
 
               {/* Actions */}
-              <div className="p-5 border-t border-theme-border mt-auto">
+              <div className="p-5 border-t border-theme-border mt-4">
                  <h3 className="text-xs font-bold text-theme-muted uppercase tracking-wider mb-3">Quick Actions</h3>
                  
                  {/* Document Buttons */}
                  <div className="flex gap-2">
                    <button 
-                     onClick={downloadPdf}
+                     onClick={handlePrintInvoice}
                      className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
                    >
                      <Printer size={14} /> Print Invoice
                    </button>
                    <button 
-                     onClick={downloadPdf}
+                     onClick={handleExportPdf}
                      className="flex-1 py-2 bg-theme-hover hover:bg-theme-hover text-theme-text text-[11px] font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
                    >
                      <Download size={14} /> Export PDF
@@ -563,6 +710,8 @@ export default function BillingPage() {
           )}
         </div>
       </div>
+      
+
     </div>
   );
 }

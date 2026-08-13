@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import prisma from '../prisma';
-import { createBookingService, checkInBookingService, checkOutBookingServiceTx } from '../services/booking.service';
+import { createBookingService, checkInBookingService, checkOutBookingServiceTx, withTxRetry, BookingConflictError, SQLITE_TX_TIMEOUT, SQLITE_TX_MAXWAIT } from '../services/booking.service';
 import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
 import { Prisma } from '@prisma/client';
 const { Decimal } = Prisma;
@@ -246,28 +246,36 @@ export const createBooking = asyncHandler(async (req: AuthRequest, res: Response
     }
 
     // Create booking. This will trigger the PostgreSQL exclusion constraint if there's an overlap.
-    const newBooking = await createBookingService({
-      bookingType: bookingType || 'LOCAL',
-      guestId: dbGuest.id,
-      roomId,
-      checkIn: checkInDate,
-      checkOut: checkOutDate,
-      arrivalTime: arrivalTime ? new Date(arrivalTime) : undefined,
-      guestCount: parseInt(guestCount) || 1,
-      additionalGuests: additionalGuests || null,
-      subtotal: estSubtotal,
-      tax: estTax,
-      total: estTotal,
-      status: 'CONFIRMED',
-      ...(total !== undefined && paymentMethod ? {
-        payments: {
-          create: {
-            amount: total,
-            method: paymentMethod
+    let newBooking;
+    try {
+      newBooking = await createBookingService({
+        bookingType: bookingType || 'LOCAL',
+        guestId: dbGuest.id,
+        roomId,
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        arrivalTime: arrivalTime ? new Date(arrivalTime) : undefined,
+        guestCount: parseInt(guestCount) || 1,
+        additionalGuests: additionalGuests || null,
+        subtotal: estSubtotal,
+        tax: estTax,
+        total: estTotal,
+        status: 'CONFIRMED',
+        ...(total !== undefined && paymentMethod ? {
+          payments: {
+            create: {
+              amount: total,
+              method: paymentMethod
+            }
           }
-        }
-      } : {})
-    });
+        } : {})
+      });
+    } catch (err: any) {
+      if (err instanceof BookingConflictError || err?.status === 409) {
+        return res.status(409).json({ message: err.message || 'Room already booked for an overlapping date range.' });
+      }
+      throw err;
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -338,7 +346,7 @@ export const cancelBooking = asyncHandler(async (req: AuthRequest, res: Response
     const booking = await prisma.booking.findUnique({ where: { id } });
     if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
-    const updatedBooking = await prisma.$transaction(async (tx) => {
+    const updatedBooking = await withTxRetry(() => prisma.$transaction(async (tx) => {
       const updated = await tx.booking.update({
         where: { id },
         data: { status: 'CANCELLED' }
@@ -353,7 +361,7 @@ export const cancelBooking = asyncHandler(async (req: AuthRequest, res: Response
       }
 
       return { updated, roomWasReserved: room?.status === 'RESERVED' };
-    });
+    }, { timeout: SQLITE_TX_TIMEOUT, maxWait: SQLITE_TX_MAXWAIT }));
 
     // Emit real-time room availability update if room was reverted to AVAILABLE
     if (updatedBooking.roomWasReserved) {
@@ -504,10 +512,10 @@ export const checkoutBooking = asyncHandler(async (req: AuthRequest, res: Respon
     
     let updatedBooking = null;
 
-    await prisma.$transaction(async (tx) => {
+    await withTxRetry(() => prisma.$transaction(async (tx) => {
       // Proceed to checkout the booking
       updatedBooking = await checkOutBookingServiceTx(tx, id, booking.roomId, totalAmount);
-    }, { isolationLevel: 'Serializable' });
+    }, { isolationLevel: 'Serializable', timeout: SQLITE_TX_TIMEOUT, maxWait: SQLITE_TX_MAXWAIT }));
 
     res.json(updatedBooking || invoice);
   });

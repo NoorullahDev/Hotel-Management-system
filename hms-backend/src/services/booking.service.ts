@@ -3,8 +3,49 @@ import { emitToHotel } from '../socket';
 import { notifyRoles } from './notificationService';
 import { getPublicSettingsData } from '../utils/settings';
 
+// SQLite uses a single shared connection guarded by an async mutex inside the
+// better-sqlite3 driver adapter. Under lock contention (SQLITE_BUSY) the engine
+// can abort a transaction before the busy-wait clears; the adapter then surfaces
+// this as P1008 ("Operations timed out"). The explicit `timeout` below is kept
+// comfortably above the busy_timeout (prisma.ts) so a transient lock can clear
+// without aborting, and the retry helper re-runs the whole transaction if one
+// still aborts, so a failed booking never wedges the connection for later ones.
+export const SQLITE_TX_TIMEOUT = 15_000;
+export const SQLITE_TX_MAXWAIT = 10_000;
+const SQLITE_TX_RETRIES = 3;
+
+// Thrown when a booking conflicts with an existing CONFIRMED/CHECKED_IN booking
+// on the same room. The controller maps this to an HTTP 409 so the New Booking
+// Wizard can gracefully bounce the user back to room selection.
+export class BookingConflictError extends Error {
+  status = 409;
+  constructor(message: string) {
+    super(message);
+    this.name = 'BookingConflictError';
+  }
+}
+
+const isTransientTxError = (err: any): boolean => {
+  if (err?.code === 'P1008') return true;
+  const msg = String(err?.message ?? '');
+  return /timed out|SQLITE_BUSY|database is locked|SocketTimeout/i.test(msg);
+};
+
+export const withTxRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= SQLITE_TX_RETRIES || !isTransientTxError(err)) throw err;
+      const delay = attempt * 250;
+      console.warn(`[booking] SQLite busy/timeout (attempt ${attempt}/${SQLITE_TX_RETRIES}); retrying in ${delay}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+};
+
 export const createBookingService = async (bookingData: any) => {
-  const newBooking = await prisma.$transaction(async (tx) => {
+  const newBooking = await withTxRetry(() => prisma.$transaction(async (tx) => {
     // 1. Fetch room to check MAINTENANCE
     const roomInfo = await tx.room.findUnique({
       where: { id: bookingData.roomId }
@@ -32,7 +73,7 @@ export const createBookingService = async (bookingData: any) => {
     });
 
     if (overlap) {
-      throw new Error(`Room ${bookingData.roomId} is already booked for an overlapping date range.`);
+      throw new BookingConflictError(`Room ${bookingData.roomId} is already booked for an overlapping date range.`);
     }
 
     const booking = await tx.booking.create({
@@ -47,7 +88,7 @@ export const createBookingService = async (bookingData: any) => {
     });
 
     return booking;
-  }, { isolationLevel: 'Serializable' });
+  }, { isolationLevel: 'Serializable', timeout: SQLITE_TX_TIMEOUT, maxWait: SQLITE_TX_MAXWAIT }));
 
   const now = new Date();
   if (bookingData.checkIn <= now && bookingData.checkOut >= now) {
@@ -98,7 +139,7 @@ export const createBookingService = async (bookingData: any) => {
 };
 
 export const checkInBookingService = async (bookingId: string, roomId: string) => {
-  const [updatedBooking] = await prisma.$transaction([
+  const [updatedBooking] = await withTxRetry(() => prisma.$transaction([
     prisma.booking.update({
       where: { id: bookingId },
       data: { status: 'CHECKED_IN' },
@@ -108,7 +149,7 @@ export const checkInBookingService = async (bookingId: string, roomId: string) =
       where: { id: roomId },
       data: { status: 'OCCUPIED' }
     })
-  ]);
+  ], { timeout: SQLITE_TX_TIMEOUT, maxWait: SQLITE_TX_MAXWAIT }));
 
   emitToHotel('main', 'booking:checked_in', { bookingId });
   emitToHotel('main', 'room:status_changed', { roomId, newStatus: 'OCCUPIED' });
@@ -165,9 +206,9 @@ export const checkOutBookingServiceTx = async (tx: any, bookingId: string, roomI
 };
 
 export const checkOutBookingService = async (bookingId: string, roomId: string) => {
-  const updatedBooking = await prisma.$transaction(async (tx) => {
+  const updatedBooking = await withTxRetry(() => prisma.$transaction(async (tx) => {
     return checkOutBookingServiceTx(tx, bookingId, roomId);
-  });
+  }, { timeout: SQLITE_TX_TIMEOUT, maxWait: SQLITE_TX_MAXWAIT }));
 
   emitToHotel('main', 'booking:checked_out', { bookingId });
   emitToHotel('main', 'room:status_changed', { roomId, newStatus: 'AVAILABLE' });

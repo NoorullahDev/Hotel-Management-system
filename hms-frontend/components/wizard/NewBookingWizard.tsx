@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Users, BedDouble, ChevronRight, ChevronLeft, Search, Calendar, User } from 'lucide-react';
+import { X, Check, Users, BedDouble, ChevronRight, ChevronLeft, Search, Calendar, User, PlusCircle, Trash2 } from 'lucide-react';
 import { useGlobalSettings } from '@/hooks/useGlobalSettings';
 import { api } from '@/lib/api';
 import { API_BASE } from '@/lib/config';
@@ -11,12 +11,28 @@ interface Props {
   bookingType?: 'LOCAL' | 'FOREIGN';
 }
 
+// A guest entry saved to the queue before proceeding to room selection
+interface QueuedGuest {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  idType: string;
+  idNumber: string;
+  nationality: string;
+  city: string;
+}
+
 export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Props) {
   const [step, setStep] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { taxRate, currencySymbol } = useGlobalSettings();
   const roomsScrollRef = useRef<HTMLDivElement>(null);
+
+  // ─── Guest Queue (bulk booking) ────────────────────────────────────────
+  const [guestQueue, setGuestQueue] = useState<QueuedGuest[]>([]);
+  const [bulkResults, setBulkResults] = useState<{ name: string; status: 'ok' | 'fail'; error?: string }[]>([]);
 
   // ─── Existing state (unchanged) ────────────────────────────────────────
   const [guestDetails, setGuestDetails] = useState({
@@ -40,11 +56,44 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const [roomSearchQuery, setRoomSearchQuery] = useState('');
   const [floorFilter, setFloorFilter] = useState('');
 
+  // ─── Force Reset on Mount (Fixes Next.js page cache issues) ────────────
+  useEffect(() => {
+    setStep(1);
+    setErrorMsg('');
+    setIsSubmitting(false);
+    setGuestQueue([]);
+    setBulkResults([]);
+    setGuestSearch('');
+    setGuestResults([]);
+    setShowDropdown(false);
+    setSelectedRoomId(null);
+    setBookingResult(null);
+    setRoomSearchQuery('');
+    setFloorFilter('');
+    
+    setGuestDetails({
+      id: '', name: '', phone: '', email: '',
+      idType: bookingType === 'FOREIGN' ? 'Passport' : 'CNIC',
+      idNumber: '', nationality: bookingType === 'FOREIGN' ? '' : 'Pakistani', city: ''
+    });
+    setAdditionalGuests([]);
+
+    setStayDetails({
+      checkIn: new Date().toISOString().split('T')[0],
+      checkOut: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+      days: 1, guests: '2 Adults, 1 Child', roomType: '',
+      specialRequests: 'High floor, Non-smoking room', arrivalTime: '14:00', departureTime: '12:00'
+    });
+
+    // Refresh room types bypassing cache
+    api.get<any>(`/api/rooms/types?_t=${Date.now()}`).then(r => setRoomTypes(r)).catch(() => {});
+  }, [bookingType]);
+
   useEffect(() => {
     const t = setTimeout(() => {
       if (guestSearch.length > 2) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        api.get<any>(`/api/guests?search=${guestSearch}&limit=5&guestType=${bookingType}`)
+        api.get<any>(`/api/guests?search=${guestSearch}&limit=5&guestType=${bookingType}&_t=${Date.now()}`)
           .then(d => { setGuestResults(d.data || []); setShowDropdown(true); })
           .catch(() => setGuestResults([]));
       } else {
@@ -84,6 +133,14 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     }
   };
 
+  const handleCheckOutChange = (newCheckOut: string) => {
+    const checkInDate = new Date(stayDetails.checkIn);
+    const checkOutDate = new Date(newCheckOut);
+    if (isNaN(checkOutDate.getTime()) || checkOutDate <= checkInDate) return;
+    const diffDays = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / 86400000);
+    setStayDetails({ ...stayDetails, checkOut: newCheckOut, days: diffDays > 0 ? diffDays : 1 });
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,14 +149,15 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [bookingResult, setBookingResult] = useState<any>(null);
 
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.get<any>('/api/rooms/types').then(r => setRoomTypes(r)).catch(() => {});
-  }, []);
+  // Note: roomTypes fetch moved to mount reset useEffect above.
 
   const fetchAvailableRooms = React.useCallback(async () => {
     try {
-      const params = new URLSearchParams({ checkIn: stayDetails.checkIn, checkOut: stayDetails.checkOut });
+      const params = new URLSearchParams({ 
+        checkIn: stayDetails.checkIn, 
+        checkOut: stayDetails.checkOut,
+        _t: Date.now().toString() 
+      });
       if (stayDetails.roomType) params.append('roomType', stayDetails.roomType);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await api.get<any>(`/api/rooms/availability?${params.toString()}`);
@@ -142,41 +200,94 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     roomsScrollRef.current?.scrollBy({ left: dir === 'right' ? 260 : -260, behavior: 'smooth' });
   };
 
-  // ─── Existing booking handler (unchanged) ──────────────────────────────
+  // ─── Add current guest to queue, reset form for next entry ────────────
+  const addToQueue = () => {
+    if (!guestDetails.name || !guestDetails.phone) return;
+    setGuestQueue(prev => [...prev, { ...guestDetails }]);
+    setGuestDetails({
+      id: '', name: '', phone: '', email: '',
+      idType: bookingType === 'FOREIGN' ? 'Passport' : 'CNIC',
+      idNumber: '', nationality: bookingType === 'FOREIGN' ? '' : 'Pakistani', city: ''
+    });
+    setAdditionalGuests([]);
+  };
+
+  // ─── Build a single booking payload ────────────────────────────────────
+  const buildPayload = (guest: QueuedGuest, roomId: string) => {
+    const checkInDateTime = `${stayDetails.checkIn}T${stayDetails.arrivalTime || '14:00'}:00`;
+    const checkOutDateTime = `${stayDetails.checkOut}T${stayDetails.departureTime || '12:00'}:00`;
+    return {
+      bookingType,
+      guest: { ...guest, guestType: bookingType },
+      roomId,
+      checkIn: bookingType === 'FOREIGN' ? checkInDateTime : stayDetails.checkIn,
+      checkOut: bookingType === 'FOREIGN' ? checkOutDateTime : stayDetails.checkOut,
+      arrivalTime: bookingType === 'FOREIGN' ? checkInDateTime : undefined,
+      guestCount: 1,
+    };
+  };
+
+  // ─── Booking handler — supports single AND bulk mode ───────────────────
   const handleConfirm = async () => {
     if (!selectedRoomId || isSubmitting) return;
     setIsSubmitting(true);
     setErrorMsg('');
-    try {
-      const checkInDateTime = `${stayDetails.checkIn}T${stayDetails.arrivalTime || '14:00'}:00`;
-      const checkOutDateTime = `${stayDetails.checkOut}T${stayDetails.departureTime || '12:00'}:00`;
-      const payload = {
-        bookingType,
-        guest: { ...guestDetails, guestType: bookingType },
-        additionalGuests: additionalGuests.length > 0 ? additionalGuests : null,
-        roomId: selectedRoomId,
-        checkIn: bookingType === 'FOREIGN' ? checkInDateTime : stayDetails.checkIn,
-        checkOut: bookingType === 'FOREIGN' ? checkOutDateTime : stayDetails.checkOut,
-        arrivalTime: bookingType === 'FOREIGN' ? checkInDateTime : undefined,
-        guestCount: parseInt(stayDetails.guests) || (1 + additionalGuests.length),
-      };
+
+    // Determine the guest list: queue takes priority; fall back to form guest
+    const allGuests: QueuedGuest[] = guestQueue.length > 0
+      ? guestQueue
+      : [{ ...guestDetails }];
+
+    if (allGuests.length === 1) {
+      // ── Single booking (original path) ──
+      try {
+        const checkInDateTime = `${stayDetails.checkIn}T${stayDetails.arrivalTime || '14:00'}:00`;
+        const checkOutDateTime = `${stayDetails.checkOut}T${stayDetails.departureTime || '12:00'}:00`;
+        const payload = {
+          bookingType,
+          guest: { ...guestDetails, guestType: bookingType },
+          additionalGuests: additionalGuests.length > 0 ? additionalGuests : null,
+          roomId: selectedRoomId,
+          checkIn: bookingType === 'FOREIGN' ? checkInDateTime : stayDetails.checkIn,
+          checkOut: bookingType === 'FOREIGN' ? checkOutDateTime : stayDetails.checkOut,
+          arrivalTime: bookingType === 'FOREIGN' ? checkInDateTime : undefined,
+          guestCount: parseInt(stayDetails.guests) || (1 + additionalGuests.length),
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = await api.post<any>('/api/bookings', payload, { timeout: 90_000 });
+        setBookingResult(data);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = await api.post<any>('/api/bookings', payload);
-      setBookingResult(data);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      if (err.status === 409) {
-        setErrorMsg(err.message || 'Room just booked by someone else!');
-        await fetchAvailableRooms();
-        setSelectedRoomId(null);
-        setStep(3);
-      } else {
-        setErrorMsg(err.message || 'Failed to create booking');
+      } catch (err: any) {
+        if (err.status === 409) {
+          setErrorMsg(err.message || 'Room just booked by someone else!');
+          await fetchAvailableRooms();
+          setSelectedRoomId(null);
+          setStep(3);
+        } else {
+          setErrorMsg(err.message || 'Failed to create booking');
+        }
+      } finally {
+        setIsSubmitting(false);
       }
-    } finally {
+    } else {
+      // ── Bulk booking: create all queued guests in parallel ──
+      const results = await Promise.allSettled(
+        allGuests.map(g => api.post<any>('/api/bookings', buildPayload(g, selectedRoomId), { timeout: 90_000 }))
+      );
+
+      const summary = results.map((r, i) => ({
+        name: allGuests[i].name,
+        status: r.status === 'fulfilled' ? 'ok' as const : 'fail' as const,
+        error: r.status === 'rejected' ? (r.reason?.message || 'Failed') : undefined,
+      }));
+
+      setBulkResults(summary);
+      // Use bookingResult as a signal that we're on the success screen
+      setBookingResult({ bulk: true });
       setIsSubmitting(false);
     }
   };
+
 
   // ═══════════════════════════════════════════════════════════════════════
   //  UI RENDER FUNCTIONS
@@ -338,11 +449,66 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
             </div>
           )}
         </div>
+
+        {/* ── Guest Queue (bulk booking) ── */}
+        <div className="mt-4 pt-3 border-t border-theme-border">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Users size={13} className="text-primary" />
+              <span className="text-[11px] font-semibold text-theme-muted">
+                Booking Queue
+                {guestQueue.length > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 bg-primary/20 text-primary text-[10px] rounded-full font-bold">
+                    {guestQueue.length}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-theme-muted-light">— Add multiple guests before proceeding</span>
+            </div>
+            <button
+              onClick={addToQueue}
+              disabled={!guestDetails.name || !guestDetails.phone}
+              className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary font-semibold rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <PlusCircle size={13} /> Add to Queue
+            </button>
+          </div>
+
+          {guestQueue.length > 0 && (
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              {guestQueue.map((g, i) => (
+                <div key={i} className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                    <div>
+                      <p className="text-xs font-semibold text-theme-text">{g.name}</p>
+                      <p className="text-[10px] text-theme-muted-light">{g.phone}{g.idNumber ? ` · ${g.idNumber}` : ''}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setGuestQueue(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-theme-muted-light hover:text-red-400 transition-colors p-1"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {guestQueue.length === 0 && (
+            <p className="text-[10px] text-theme-muted-light italic">
+              Fill guest details above and click &quot;Add to Queue&quot; to book multiple guests at once. Or just click Next for a single booking.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
 
+
   // ── Step 2: Stay Details ───────────────────────────────────────────────
+
   const renderStep2 = () => (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2.5 mb-4">
@@ -363,7 +529,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
             <label className={lbl}>Check-out Date *</label>
             <div className="relative">
               <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-theme-muted-light pointer-events-none" />
-              <input type="date" disabled value={stayDetails.checkOut} className={`${inp} pl-9 opacity-50 cursor-not-allowed [color-scheme:dark]`} />
+              <input type="date" value={stayDetails.checkOut} onChange={e => handleCheckOutChange(e.target.value)} min={new Date(new Date(stayDetails.checkIn).getTime() + 86400000).toISOString().split('T')[0]} className={`${inp} pl-9 [color-scheme:dark]`} />
             </div>
           </div>
           <div>
@@ -470,9 +636,13 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     className="w-full h-full object-cover"
                     onError={e => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=300&auto=format&fit=crop'; }}
                   />
-                  {/* Available badge */}
-                  <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-green-500/90 text-white text-[10px] font-bold rounded backdrop-blur-sm">
-                    Available
+                  {/* Status badge — reflects the room's real current status. The
+                      availability query guarantees no date conflict, so even an
+                      occupied/reserved room is selectable for these dates. */}
+                  <span className={`absolute bottom-2 left-2 px-2 py-0.5 text-white text-[10px] font-bold rounded backdrop-blur-sm ${
+                    room.status === 'AVAILABLE' ? 'bg-green-500/90' : 'bg-amber-500/90'
+                  }`}>
+                    {room.status === 'AVAILABLE' ? 'Available' : room.status === 'OCCUPIED' ? 'Occupied' : room.status}
                   </span>
                   {/* Selected checkmark */}
                   {selectedRoomId === room.id && (
@@ -490,7 +660,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                     <div className="flex items-center gap-1"><Users size={12} /><span className="text-[10px]">1</span></div>
                   </div>
                   <div className="mt-2.5 pt-2 border-t border-theme-border">
-                    <span className="text-sm font-bold text-theme-text">{currencySymbol} {room.price?.toLocaleString()}</span>
+                    <span className="text-sm font-bold text-theme-text">{currencySymbol} {Number(room.price || 0).toLocaleString()}</span>
                     <span className="text-[10px] text-theme-muted-light"> /night</span>
                   </div>
                 </div>
@@ -512,6 +682,43 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
   const renderStep4 = () => {
     // After booking is created — success view
     if (bookingResult) {
+      // ── Bulk booking results screen ──
+      if (bookingResult.bulk) {
+        const okCount = bulkResults.filter(r => r.status === 'ok').length;
+        const failCount = bulkResults.filter(r => r.status === 'fail').length;
+        return (
+          <div className="h-full flex flex-col">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-full bg-green-500/10 border-2 border-green-500/30 flex items-center justify-center">
+                <Check size={24} className="text-green-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-theme-text">Bulk Booking Complete</h3>
+                <p className="text-xs text-theme-muted">
+                  <span className="text-green-400 font-semibold">{okCount} confirmed</span>
+                  {failCount > 0 && <span className="text-red-400 font-semibold ml-2">{failCount} failed</span>}
+                </p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+              {bulkResults.map((r, i) => (
+                <div key={i} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${r.status === 'ok' ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-white flex-shrink-0 ${r.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}>
+                      {r.status === 'ok' ? <Check size={11} strokeWidth={3} /> : <X size={11} strokeWidth={3} />}
+                    </span>
+                    <span className="text-xs font-semibold text-theme-text">{r.name}</span>
+                  </div>
+                  {r.error && <span className="text-[10px] text-red-400 max-w-[180px] text-right">{r.error}</span>}
+                  {r.status === 'ok' && <span className="text-[10px] text-green-400 font-semibold">Confirmed</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      // ── Single booking success screen (original) ──
       return (
         <div className="h-full flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 rounded-full bg-green-500/10 border-2 border-green-500/30 flex items-center justify-center mb-5">
@@ -519,6 +726,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
           </div>
           <h3 className="text-2xl font-bold text-theme-text mb-1">Booking Created!</h3>
           <p className="text-sm text-theme-muted mb-6">The reservation has been successfully confirmed.</p>
+
           <div className="w-full max-w-sm bg-theme-card border border-theme-border rounded-xl p-5 text-left space-y-3">
             <div>
               <p className="text-[10px] text-theme-muted-light uppercase font-bold mb-0.5">Booking ID</p>
@@ -611,7 +819,7 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
                   <BedDouble size={12} />
                   <Users size={12} />
                 </div>
-                <p className="mt-2 text-sm font-bold text-theme-text">{currencySymbol} {selectedRoom.price?.toLocaleString()} <span className="text-[10px] text-theme-muted-light font-normal">/night</span></p>
+                <p className="mt-2 text-sm font-bold text-theme-text">{currencySymbol} {Number(selectedRoom.price || 0).toLocaleString()} <span className="text-[10px] text-theme-muted-light font-normal">/night</span></p>
               </div>
             ) : (
               <p className="text-xs text-theme-muted-light italic">No room selected</p>
@@ -658,7 +866,8 @@ export default function NewBookingWizard({ onClose, bookingType = 'LOCAL' }: Pro
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative bg-theme-main border border-theme-border rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '85vh' }}>
+      <div className="relative z-10 bg-theme-main border border-theme-border rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden" style={{ height: '85vh' }} onClick={e => e.stopPropagation()}>
+
 
         {/* ── Header ─── */}
         <div className="flex-shrink-0 px-7 py-4 border-b border-theme-border flex items-center justify-between">

@@ -62,9 +62,8 @@ export default function BackupRestoreTab() {
       } else {
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10);
-        const hourStr = now.getHours().toString().padStart(2, '0');
-        const minStr = now.getMinutes().toString().padStart(2, '0');
-        filename = `HMS_Backup_${dateStr}_${hourStr}-${minStr}.zip`;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        filename = `HMS_Backup_${dateStr}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.zip`;
       }
 
       const url = window.URL.createObjectURL(blob);

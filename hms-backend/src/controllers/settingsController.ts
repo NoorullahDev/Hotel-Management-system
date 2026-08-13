@@ -309,12 +309,28 @@ export const backupDatabase = asyncHandler(async (req: AuthRequest, res: Respons
 import AdmZip from 'adm-zip';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 import { generateSqlDump } from '../utils/sqlDump';
 
-// ── Download Backup as File ─────────────────────────────────────────────────
+// ── Backup archive builder (single source of truth for manual + auto backup) ─
 
-export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Response) => {
+/**
+ * Build a unique backup filename with date + time (including seconds) so
+ * consecutive backups never overwrite each other.
+ */
+function buildBackupFilename(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = date.toISOString().slice(0, 10);
+  return `HMS_Backup_${dateStr}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}.zip`;
+}
+
+/**
+ * Build a complete backup ZIP (SQL dump, verification report and uploaded
+ * images). Shared by the manual download and the automatic on-close backup so
+ * backup logic is never duplicated.
+ */
+async function buildBackupArchive(): Promise<{ buffer: Buffer; filename: string }> {
     // includeSecrets=true to fetch passwordHash + lockedUntil for a complete restore
     const backupData = await collectBackupData(true);
 
@@ -378,17 +394,73 @@ export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Respons
     // Add SQL dump to zip
     zip.addFile('database.sql', Buffer.from(sqlScript, 'utf8'));
 
-    const zipBuffer = zip.toBuffer();
+    return { buffer: zip.toBuffer(), filename: buildBackupFilename() };
+}
 
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10);
-    const hourStr = now.getHours().toString().padStart(2, '0');
-    const minStr = now.getMinutes().toString().padStart(2, '0');
-    const filename = `HMS_Backup_${dateStr}_${hourStr}-${minStr}.zip`;
+// ── Download Backup as File ─────────────────────────────────────────────────
+
+export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { buffer, filename } = await buildBackupArchive();
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(zipBuffer);
+    res.send(buffer);
+  });
+
+// ── Automatic Backup (on app close) ─────────────────────────────────────────
+
+/**
+ * Creates a full backup file on disk (dedicated Backup folder on the Desktop)
+ * when the desktop app closes. Reuses buildBackupArchive so there is no
+ * duplicated backup logic. Guarded by the AUTO_BACKUP_KEY header checked in the
+ * route middleware so only the desktop main process can trigger it.
+ */
+export const createAutoBackup = asyncHandler(async (req: Request, res: Response) => {
+    const { buffer, filename: baseFilename } = await buildBackupArchive();
+
+    const backupDir = process.env.BACKUP_DIR || path.join(os.homedir(), 'Desktop', 'Backup');
+    fs.mkdirSync(backupDir, { recursive: true });
+
+    // Guarantee we never overwrite an existing backup. If a file with the same
+    // date+time name already exists (e.g. two closes within the same second),
+    // append a numeric suffix to keep every backup on disk.
+    let filename = baseFilename;
+    let filePath = path.join(backupDir, filename);
+    let counter = 1;
+    while (fs.existsSync(filePath)) {
+      filename = `${path.basename(baseFilename, '.zip')}-${++counter}.zip`;
+      filePath = path.join(backupDir, filename);
+    }
+    fs.writeFileSync(filePath, buffer);
+
+    await prisma.setting.upsert({
+      where:  { key: 'lastBackupAt' },
+      update: { value: new Date().toISOString() as any },
+      create: { key: 'lastBackupAt', category: 'system', value: new Date().toISOString() as any },
+    });
+
+    // No logged-in user exists during an automatic backup, so record it against
+    // the admin account (best effort) to keep the audit trail complete.
+    try {
+      const admin = await prisma.user.findFirst({
+        where: { role: { name: 'Admin' } },
+        select: { id: true },
+      });
+      if (admin) {
+        await prisma.auditLog.create({
+          data: {
+            userId:  admin.id,
+            action:  'AUTO_BACKUP',
+            module:  'Settings',
+            details: 'Automatic backup created on application close',
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to record automatic backup audit entry:', err);
+    }
+
+    res.json({ message: 'Automatic backup created successfully', filename, path: filePath });
   });
 
 // ── Restore Database ────────────────────────────────────────────────────────

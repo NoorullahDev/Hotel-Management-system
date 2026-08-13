@@ -159,7 +159,6 @@ export default function BillingPage() {
     const checkOut = new Date(folioData.checkOut).toLocaleDateString();
 
     const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:4000';
-    const logoImg = hotelLogo ? `<img src="${baseUrl}${hotelLogo}" style="max-width: 80px; max-height: 80px; margin: 0 auto 10px auto; display: block;" />` : '';
 
     let itemsHtml = '';
     folioData.items.forEach((item: any) => {
@@ -171,106 +170,225 @@ export default function BillingPage() {
       `;
     });
 
-    return `
-      <html>
-      <head>
-        <title>Invoice</title>
-        <style>
-          @page { margin: 0; size: 80mm auto; }
-          body { 
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; 
-            font-size: 12px; 
-            color: #000;
-            margin: 0 auto;
-            padding: 10px;
-            width: 80mm;
-            max-width: 100%;
-            box-sizing: border-box;
-          }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-          .desc { flex: 1; padding-right: 10px; }
-          .amt { text-align: right; white-space: nowrap; }
-          .dashed { border-bottom: 1px dashed #000; margin: 10px 0; }
-          .solid { border-bottom: 1px solid #000; margin: 8px 0; }
-          .hotel-name { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-          .footer { font-size: 10px; margin-top: 30px; text-align: center; }
-          .logo { max-width: 80px; max-height: 80px; margin: 0 auto 10px auto; display: block; }
-        </style>
-      </head>
-      <body>
-        ${hotelLogo ? `<img src="${baseUrl}${hotelLogo}" class="logo" />` : ''}
-        <div class="center">
-          <div class="hotel-name">${hotelName || 'EagleNest Hotel'}</div>
-          ${hotelAddress ? `<div>${hotelAddress}</div>` : ''}
-          ${contactNumber ? `<div>Tel: ${contactNumber}</div>` : ''}
-        </div>
-        
-        <div class="dashed"></div>
-        
-        <div class="row">
-          <span>Invoice #: INV-${folioData.bookingId.substring(0, 8).toUpperCase()}</span>
-          <span>Date: ${date}</span>
-        </div>
-        <div class="row">
-          <span>Guest: ${folioData.guestName}</span>
-          <span>Room: ${folioData.roomNumber}</span>
-        </div>
-        <div class="row">
-          <span>Check-in: ${checkIn}</span>
-          <span>Check-out: ${checkOut}</span>
-        </div>
-        
-        <div class="dashed"></div>
-        
-        <div class="row bold" style="margin-bottom: 6px;">
-          <span class="desc">Description</span>
-          <span class="amt">Amount</span>
-        </div>
-        
-        ${itemsHtml}
-        
-        <div class="solid"></div>
-        
-        <div class="row bold">
-          <span>Subtotal:</span>
-          <span>${currencySymbol} ${folioData.subTotal.toFixed(2)}</span>
-        </div>
-        <div class="row">
-          <span>Tax (${folioData.taxPct ?? taxRate}%):</span>
-          <span>${currencySymbol} ${folioData.taxAmount.toFixed(2)}</span>
-        </div>
-        ${folioData.discount ? `
-        <div class="row">
-          <span>Discount:</span>
-          <span>-${currencySymbol} ${folioData.discount.toFixed(2)}</span>
-        </div>` : ''}
-        
-        <div class="solid"></div>
-        
-        <div class="row bold" style="font-size: 14px;">
-          <span>Grand Total:</span>
-          <span>${currencySymbol} ${folioData.totalAmount.toFixed(2)}</span>
-        </div>
-        
-        <div class="row" style="margin-top: 6px;">
-          <span>Paid:</span>
-          <span>${currencySymbol} ${folioData.paidAmount.toFixed(2)}</span>
-        </div>
-        
-        <div class="dashed" style="margin-top: 15px;"></div>
-        
-        <div class="center" style="margin-top: 10px;">
-          Thank you for your stay!
-        </div>
-        
-        <div class="footer">
-          <div>Software Provided By EagleNest Creations (0346-4451505)</div>
-                 </div>
-      </body>
-      </html>
-    `;
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Invoice</title>
+  <style>
+    @page {
+      margin: 0;
+      size: 80mm auto;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html {
+      height: auto;
+    }
+    body {
+      width: 80mm;
+      max-width: 80mm;
+      height: auto;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      color: #000;
+      background: #fff;
+      padding: 10px 12px 16px 12px;
+    }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+
+    /* Logo */
+    .logo {
+      display: block;
+      max-width: 70px;
+      max-height: 70px;
+      margin: 0 auto 8px auto;
+    }
+
+    /* Hotel header */
+    .hotel-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 3px;
+    }
+    .hotel-sub {
+      font-size: 11px;
+      color: #222;
+      margin-bottom: 1px;
+    }
+
+    /* Dividers */
+    .dashed {
+      border: none;
+      border-bottom: 1px dashed #555;
+      margin: 8px 0;
+    }
+    .solid {
+      border: none;
+      border-bottom: 1.5px solid #000;
+      margin: 5px 0;
+    }
+
+    /* Two-column row */
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 3px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .desc {
+      flex: 1;
+      padding-right: 8px;
+      word-break: break-word;
+    }
+    .amt {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* Table header row */
+    .tbl-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    /* Subtotal bold row */
+    .row-bold {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 3px;
+      line-height: 1.5;
+    }
+
+    /* Grand Total */
+    .grand-total-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 15px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      line-height: 1.6;
+    }
+
+    /* Paid row */
+    .paid-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 2px;
+      line-height: 1.5;
+    }
+
+    /* Thank you */
+    .thankyou {
+      text-align: center;
+      font-size: 12px;
+      margin: 6px 0 4px 0;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      font-size: 10px;
+      color: #333;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  ${hotelLogo ? `<img src="${baseUrl}${hotelLogo}" class="logo" alt="Hotel Logo" />` : ''}
+  <div class="center">
+    <div class="hotel-name">${hotelName || 'EagleNest Hotel'}</div>
+    ${hotelAddress ? `<div class="hotel-sub">${hotelAddress}</div>` : ''}
+    ${contactNumber ? `<div class="hotel-sub">Tel: ${contactNumber}</div>` : ''}
+  </div>
+
+  <div class="dashed"></div>
+
+  <!-- INVOICE + GUEST DETAILS (compact 2-col grid matching reference) -->
+  <div class="row">
+    <span>Invoice #: INV-${folioData.bookingId.substring(0, 8).toUpperCase()}</span>
+    <span>Date: ${date}</span>
+  </div>
+  <div class="row">
+    <span>Guest: ${folioData.guestName}</span>
+    <span>Room: ${folioData.roomNumber}</span>
+  </div>
+  <div class="row">
+    <span>Check-in: ${checkIn}</span>
+    <span>Check-out: ${checkOut}</span>
+  </div>
+
+  <div class="dashed"></div>
+
+  <!-- DESCRIPTION / AMOUNT TABLE HEADER -->
+  <div class="tbl-header">
+    <span class="desc">Description</span>
+    <span>Amount</span>
+  </div>
+  <div class="solid" style="margin-top: 0;"></div>
+
+  <!-- LINE ITEMS -->
+  ${itemsHtml}
+
+  <div class="solid"></div>
+
+  <!-- SUBTOTAL & TAX -->
+  <div class="row-bold">
+    <span>Subtotal:</span>
+    <span>${currencySymbol} ${folioData.subTotal.toFixed(2)}</span>
+  </div>
+  <div class="row">
+    <span>Tax (${folioData.taxPct ?? taxRate}%):</span>
+    <span>${currencySymbol} ${folioData.taxAmount.toFixed(2)}</span>
+  </div>
+  ${folioData.discount ? `
+  <div class="row">
+    <span>Discount:</span>
+    <span>-${currencySymbol} ${folioData.discount.toFixed(2)}</span>
+  </div>` : ''}
+
+  <div class="solid"></div>
+
+  <!-- GRAND TOTAL -->
+  <div class="grand-total-row">
+    <span>Grand Total:</span>
+    <span>${currencySymbol} ${folioData.totalAmount.toFixed(2)}</span>
+  </div>
+
+  <!-- PAID -->
+  <div class="paid-row">
+    <span>Paid:</span>
+    <span>${currencySymbol} ${folioData.paidAmount.toFixed(2)}</span>
+  </div>
+
+  <div class="dashed"></div>
+
+  <!-- THANK YOU -->
+  <div class="thankyou">Thank you for your stay!</div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>Software is developed by EagleNest Creations</div>
+    <div>Contact: 0346-4451505</div>
+  </div>
+
+</body>
+</html>`;
   };
 
   const handlePrintInvoice = async () => {

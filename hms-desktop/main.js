@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const waitOn = require('wait-on');
 
 // Configuration
@@ -10,6 +11,9 @@ const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 
 let mainWindow = null;
 let backendProcess = null;
+let autoBackupKey = null;
+let autoBackupPerformed = false;
+let isQuitting = false;
 
 // Determine paths based on whether we're in dev or production
 function getBasePath() {
@@ -21,6 +25,17 @@ function getBasePath() {
 
 function getBackendPath() {
   return path.join(getBasePath(), 'hms-backend');
+}
+
+// Dedicated folder on the user's Desktop where automatic backups are saved.
+function getBackupDir() {
+  try {
+    const desktop = app.getPath('desktop');
+    if (desktop) return path.join(desktop, 'Backup');
+  } catch (err) {
+    console.warn('Could not resolve Desktop path for backups:', err);
+  }
+  return path.join(app.getPath('home'), 'Desktop', 'Backup');
 }
 
 // Kill any stale process still listening on the backend port (e.g. an orphaned
@@ -87,7 +102,6 @@ function startBackend() {
     let refreshSecret = process.env.JWT_REFRESH_SECRET;
     
     if (!fs.existsSync(envPath)) {
-      const crypto = require('crypto');
       jwtSecret = crypto.randomBytes(32).toString('hex');
       refreshSecret = crypto.randomBytes(32).toString('hex');
       fs.writeFileSync(envPath, `JWT_SECRET=${jwtSecret}\nJWT_REFRESH_SECRET=${refreshSecret}\n`);
@@ -100,6 +114,12 @@ function startBackend() {
     }
     
     const dbUrl = `file:${dbPath}`;
+
+    // Internal key + destination for the automatic on-close backup. Freshly
+    // generated on every launch and shared with the backend via the environment.
+    autoBackupKey = crypto.randomBytes(32).toString('hex');
+    const backupDir = getBackupDir();
+    console.log('Automatic backups will be saved to:', backupDir);
 
     // Free the port first so a stale backend from a previous run can't block startup
     await killProcessOnPort(BACKEND_PORT);
@@ -117,7 +137,9 @@ function startBackend() {
         DATABASE_URL: dbUrl,
         UPLOADS_DIR: uploadsPath,
         JWT_SECRET: jwtSecret,
-        JWT_REFRESH_SECRET: refreshSecret
+        JWT_REFRESH_SECRET: refreshSecret,
+        AUTO_BACKUP_KEY: autoBackupKey,
+        BACKUP_DIR: backupDir
       },
       shell: true,
       windowsHide: true,
@@ -302,6 +324,28 @@ function killAllProcesses() {
   }
 }
 
+// Create an automatic backup before the app quits by reusing the backend's
+// existing backup pipeline (single source of truth). The internal endpoint is
+// guarded by AUTO_BACKUP_KEY so it can't be triggered from the frontend.
+async function runAutoBackup() {
+  if (autoBackupPerformed || !autoBackupKey) return;
+  autoBackupPerformed = true;
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/settings/backup/auto`, {
+      method: 'POST',
+      headers: { 'X-Auto-Backup-Key': autoBackupKey },
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Backend returned ${res.status}${text ? `: ${text}` : ''}`);
+    }
+    console.log('[AutoBackup] Automatic backup created successfully.');
+  } catch (err) {
+    console.error('[AutoBackup] Failed to create automatic backup:', err && err.message || err);
+  }
+}
+
 // Main application startup
 app.whenReady().then(async () => {
   createWindow();
@@ -365,13 +409,19 @@ app.whenReady().then(async () => {
 
 // Quit when all windows are closed
 app.on('window-all-closed', () => {
-  killAllProcesses();
   app.quit();
 });
 
-// Also kill processes on explicit quit
-app.on('before-quit', () => {
-  killAllProcesses();
+// Run the automatic backup before quitting, then shut down the backend.
+app.on('before-quit', (event) => {
+  if (isQuitting) return;
+  event.preventDefault();
+  isQuitting = true;
+  (async () => {
+    await runAutoBackup();
+    killAllProcesses();
+    app.quit();
+  })();
 });
 
 // Handle macOS dock click

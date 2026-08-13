@@ -14,7 +14,7 @@ function getToken(): string | null {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeout?: number } = {}
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -31,11 +31,33 @@ export async function apiFetch<T>(
     delete headers['Content-Type'];
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { 
-    cache: 'no-store', 
-    ...options, 
-    headers 
-  });
+  // Abort hung requests (e.g. a backend transaction stall) so the UI never
+  // stays stuck on a pending promise / "Submitting…" state. Callers that make
+  // irreversible mutations (e.g. creating a booking) can raise `timeout` so a
+  // slow-but-still-running backend transaction isn't aborted mid-flight, which
+  // would otherwise make the UI report failure while the booking still gets
+  // created (leading to accidental duplicates on retry).
+  const controller = new AbortController();
+  const requestTimeoutMs = options.timeout ?? 30_000;
+  const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+  const signal = options.signal ?? controller.signal;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      cache: 'no-store',
+      ...options,
+      headers,
+      signal,
+    });
+  } catch (err) {
+    if (signal.aborted && !options.signal) {
+      throw new ApiError(504, 'Request timed out. Please try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (res.status === 401) {
     if (path.includes('/api/auth/login') || path.includes('/api/auth/refresh')) {
@@ -99,10 +121,11 @@ export async function apiFetch<T>(
 }
 
 // Convenience methods
+type ApiRequestInit = RequestInit & { timeout?: number };
 export const api = {
-  get:    <T>(path: string, options?: RequestInit) => apiFetch<T>(path, { ...options, method: 'GET' }),
-  post:   <T>(path: string, body?: unknown, options?: RequestInit) => apiFetch<T>(path, { ...options, method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body) }),
-  patch:  <T>(path: string, body?: unknown, options?: RequestInit) => apiFetch<T>(path, { ...options, method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body) }),
-  put:    <T>(path: string, body?: unknown, options?: RequestInit) => apiFetch<T>(path, { ...options, method: 'PUT', body: body instanceof FormData ? body : JSON.stringify(body) }),
-  delete: <T>(path: string, options?: RequestInit) => apiFetch<T>(path, { ...options, method: 'DELETE' }),
+  get:    <T>(path: string, options?: ApiRequestInit) => apiFetch<T>(path, { ...options, method: 'GET' }),
+  post:   <T>(path: string, body?: unknown, options?: ApiRequestInit) => apiFetch<T>(path, { ...options, method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body) }),
+  patch:  <T>(path: string, body?: unknown, options?: ApiRequestInit) => apiFetch<T>(path, { ...options, method: 'PATCH', body: body instanceof FormData ? body : JSON.stringify(body) }),
+  put:    <T>(path: string, body?: unknown, options?: ApiRequestInit) => apiFetch<T>(path, { ...options, method: 'PUT', body: body instanceof FormData ? body : JSON.stringify(body) }),
+  delete: <T>(path: string, options?: ApiRequestInit) => apiFetch<T>(path, { ...options, method: 'DELETE' }),
 };

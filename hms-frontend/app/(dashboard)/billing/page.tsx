@@ -383,8 +383,8 @@ export default function BillingPage() {
 
   <!-- FOOTER -->
   <div class="footer">
-    <div>Software is developed by EagleNest Creations</div>
-    <div>Contact: 0346-4451505</div>
+    <div>Software develop by EagleNest Creations</div>
+    <div>Contact number: 0346-4451505</div>
   </div>
 
 </body>

@@ -148,8 +148,9 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
   const paymentStatus = totalPaid >= grandTotal ? 'PAID' : (totalPaid > 0 ? 'PARTIAL' : 'PENDING');
 
   // ── Create Thermal Receipt PDF ──────────────────────────────────────
+  const estimatedHeight = 310 + (receiptItems.length * 15) + (hotelLogo ? 50 : 0) + (discountAmount < 0 ? 15 : 0);
   const doc = new PDFDocument({
-    size: [RECEIPT_WIDTH, 800],
+    size: [RECEIPT_WIDTH, estimatedHeight],
     margin: MARGIN,
     bufferPages: true,
   });
@@ -235,6 +236,7 @@ export const getInvoicePdf = asyncHandler(async (req: Request, res: Response) =>
   doc.moveDown(1.2);
 
   doc.font('Helvetica').fontSize(7).fillColor('#000000')
-    .text('Software Provided By EagleNest Creations (0346-4451505)', { align: 'center' });
+    .text('Software develop by EagleNest Creations', { align: 'center' });
+  doc.text('Contact number: 0346-4451505', { align: 'center' });
   doc.end();
 });

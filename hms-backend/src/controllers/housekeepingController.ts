@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { createStaffAccount } from '../services/staff.service';
+import { withTxRetry } from '../services/booking.service';
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -141,7 +142,7 @@ export const createHousekeepingStaff = asyncHandler(async (req: Request, res: Re
   const finalEmail = email ? String(email).trim().toLowerCase() : undefined;
   let newStaff: any;
   try {
-    newStaff = await prisma.$transaction(async (tx) => {
+    newStaff = await withTxRetry(() => prisma.$transaction(async (tx) => {
       return await createStaffAccount(tx, {
         name: String(name),
         email: email ? String(email) : undefined,
@@ -152,7 +153,7 @@ export const createHousekeepingStaff = asyncHandler(async (req: Request, res: Re
         status: String(status),
         hireDate: new Date(),
       });
-    });
+    }));
   } catch (error: any) {
     if (error.message.includes('already exists') || error.message.includes('not configured')) {
       return res.status(error.message.includes('already exists') ? 400 : 500).json({ message: error.message });

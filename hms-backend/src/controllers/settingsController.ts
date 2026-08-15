@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { emitToHotel } from '../socket';
 import { getPublicSettingsData, invalidateTaxCache, invalidatePublicSettingsCache } from '../utils/settings';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { withTxRetry } from '../services/booking.service';
 
 // ── Public Settings (Login page, guest-facing) ──────────────────────────────
 
@@ -465,10 +466,24 @@ export const createAutoBackup = asyncHandler(async (req: Request, res: Response)
 
 // ── Restore Database ────────────────────────────────────────────────────────
 
-export const restoreDatabase = asyncHandler(async (req: Request, res: Response) => {
+export const restoreDatabase = asyncHandler(async (req: AuthRequest, res: Response) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No backup file provided' });
     }
+
+    // Re-verify the user's current password: restore overwrites the entire DB
+    const userId = req.user!.userId;
+    const { currentPassword } = req.body as { currentPassword?: string };
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'Current password required to restore database' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) return res.status(400).json({ message: 'Incorrect current password' });
 
     const zipPath = req.file.path;
     try {
@@ -589,12 +604,12 @@ export const restoreDatabase = asyncHandler(async (req: Request, res: Response) 
 
       // Execute all statements within a transaction to ensure atomicity
       try {
-        await prisma.$transaction(async (tx) => {
+        await withTxRetry(() => prisma.$transaction(async (tx) => {
           // We do not need PRAGMA foreign_keys = OFF because tables are deleted/inserted in dependency order
           for (const stmt of statements) {
             await tx.$executeRawUnsafe(stmt);
           }
-        });
+        }));
         res.json({ message: 'Database restored successfully' });
       } catch (err: any) {
         console.error('Restore failed:', err);

@@ -1,5 +1,6 @@
 import prisma from '../prisma';
 import { emitToHotel } from '../socket';
+import { withTxRetry } from './booking.service';
 
 export const updateRoomStatus = async (id: string, status: any) => {
   if (status === 'AVAILABLE') {
@@ -27,7 +28,7 @@ export const updateRoomStatus = async (id: string, status: any) => {
 };
 
 export const logRoomMaintenance = async (id: string, description: string) => {
-  const result = await prisma.$transaction([
+  const result = await withTxRetry(() => prisma.$transaction([
     prisma.roomMaintenance.create({
       data: {
         roomId: id,
@@ -40,7 +41,7 @@ export const logRoomMaintenance = async (id: string, description: string) => {
       data: { status: 'MAINTENANCE' },
       include: { roomType: true }
     })
-  ]);
+  ]));
 
   // Emit real-time event for room status change
   emitToHotel('main', 'room:status_changed', {

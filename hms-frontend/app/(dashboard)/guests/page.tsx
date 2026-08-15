@@ -15,6 +15,17 @@ export default function ForeignGuestsPage() {
   const [meta, setMeta] = useState({ total: 0, page: 1, limit: 50, totalPages: 1 });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      // Require at least 2 characters, or 0 to clear
+      if (searchQuery.length === 0 || searchQuery.length >= 2) {
+        setDebouncedSearchQuery(searchQuery);
+      }
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
   const [statusFilter, setStatusFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -32,7 +43,7 @@ export default function ForeignGuestsPage() {
         limit: '50',
         page: String(page),
       });
-      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (debouncedSearchQuery.trim()) params.set('search', debouncedSearchQuery.trim());
       if (statusFilter)      params.set('status', statusFilter);
       if (startDate)         params.set('startDate', startDate);
       if (endDate)           params.set('endDate', endDate);
@@ -45,7 +56,7 @@ export default function ForeignGuestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter, startDate, endDate]);
+  }, [debouncedSearchQuery, statusFilter, startDate, endDate]);
 
   const fetchRooms = async () => {
     try {
@@ -57,7 +68,7 @@ export default function ForeignGuestsPage() {
   useEffect(() => {
     fetchBookings(1);
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, startDate, endDate]);
+  }, [debouncedSearchQuery, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchBookings(currentPage);

@@ -1,5 +1,5 @@
 import prisma from '../prisma';
-import { checkOutBookingServiceTx } from './booking.service';
+import { checkOutBookingServiceTx, withTxRetry } from './booking.service';
 import { getTaxSettings, getPublicSettingsData } from '../utils/settings';
 import { emitToHotel } from '../socket';
 import { notifyRoles } from './notificationService';
@@ -157,7 +157,7 @@ export const generateInvoice = async (tx: any, booking: any, discount: number = 
 };
 
 export const settlePayment = async (bookingId: string, amount: number | string, method: string) => {
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await withTxRetry(() => prisma.$transaction(async (tx) => {
     const booking = await tx.booking.findUniqueOrThrow({ 
       where: { id: bookingId },
       include: {
@@ -207,7 +207,7 @@ export const settlePayment = async (bookingId: string, amount: number | string, 
     }
 
     return { payment, checkedOut, updatedBooking, invoice };
-  }, { isolationLevel: 'Serializable' });
+  }, { isolationLevel: 'Serializable' }));
 
   if (result.checkedOut && result.updatedBooking) {
     emitToHotel('main', 'booking:checked_out', { bookingId });

@@ -11,3 +11,15 @@ export const loginRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Too many login attempts. Please try again after 1 minute.' },
 });
+
+/**
+ * Rate limiter for the database restore endpoint.
+ * Max 3 requests per 15 minutes per IP address.
+ */
+export const restoreRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 3,                   // 3 requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many restore attempts. Please try again after 15 minutes.' },
+});

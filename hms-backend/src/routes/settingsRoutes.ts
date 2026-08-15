@@ -14,6 +14,7 @@ import {
   createAutoBackup
 } from '../controllers/settingsController';
 import { authenticateJWT, requirePermission } from '../middleware/authMiddleware';
+import { restoreRateLimiter } from '../middleware/rateLimiter';
 import { uploadBackup } from '../middleware/uploadBackup';
 
 const router = Router();
@@ -49,6 +50,6 @@ router.get('/backup/info', authenticateJWT, canManageSettings, getBackupInfo);
 router.post('/backup', authenticateJWT, canManageSettings, backupDatabase);
 router.get('/backup/download', authenticateJWT, canManageSettings, downloadBackup);
 router.post('/backup/auto', requireAutoBackupKey, createAutoBackup);
-router.post('/restore', authenticateJWT, canManageSettings, uploadBackup.single('file'), restoreDatabase);
+router.post('/restore', authenticateJWT, canManageSettings, restoreRateLimiter, uploadBackup.single('file'), restoreDatabase);
 
 export default router;

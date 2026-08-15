@@ -186,8 +186,3 @@ server.listen(port, async () => {
   await seedDefaultRolePermissions();
   console.log(`Server is running on port ${port}`);
 });
-
-app.use((err: any, req: any, res: any, next: any) => {
-  console.error('GLOBAL ERROR:', err);
-  res.status(500).json({ message: err.message || 'Internal Server Error' });
-});

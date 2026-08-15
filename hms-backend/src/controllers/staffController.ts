@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { createStaffAccount } from '../services/staff.service';
+import { withTxRetry } from '../services/booking.service';
 
 type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
@@ -84,7 +85,7 @@ export const createStaff = asyncHandler(async (req: AuthRequest, res: Response) 
 
     let newStaff: any;
     try {
-      newStaff = await prisma.$transaction(async (tx) => {
+      newStaff = await withTxRetry(() => prisma.$transaction(async (tx) => {
         return await createStaffAccount(tx, {
           name: String(name),
           username: username ? String(username) : undefined,
@@ -96,7 +97,7 @@ export const createStaff = asyncHandler(async (req: AuthRequest, res: Response) 
           status: String(status),
           hireDate: hireDate ? new Date(String(hireDate)) : undefined,
         });
-      });
+      }));
     } catch (error: any) {
       if (error.message.includes('already exists') || error.message.includes('not configured')) {
         return res.status(error.message.includes('already exists') ? 400 : 500).json({ message: error.message });
@@ -140,7 +141,7 @@ export const updateStaff = asyncHandler(async (req: AuthRequest, res: Response) 
       if (systemRole) roleId = systemRole.id;
     }
 
-    await prisma.$transaction(async (tx: TxClient) => {
+    await withTxRetry(() => prisma.$transaction(async (tx: TxClient) => {
       if (name || username || email || phone !== undefined || roleId !== staff.user.roleId) {
         await tx.user.update({
           where: { id: staff.userId },
@@ -163,7 +164,7 @@ export const updateStaff = asyncHandler(async (req: AuthRequest, res: Response) 
           status: status ? String(status) : undefined,
         }
       });
-    });
+    }));
 
     await prisma.auditLog.create({
       data: {
@@ -186,7 +187,7 @@ export const deleteStaff = asyncHandler(async (req: AuthRequest, res: Response) 
       return res.status(404).json({ message: 'Staff not found' });
     }
 
-    await prisma.$transaction(async (tx: TxClient) => {
+    await withTxRetry(() => prisma.$transaction(async (tx: TxClient) => {
       // Disconnect all tasks to prevent cascade deleting historical data
       await tx.housekeepingTask.updateMany({
         where: { staffId: staffId },
@@ -195,7 +196,7 @@ export const deleteStaff = asyncHandler(async (req: AuthRequest, res: Response) 
 
       await tx.staff.delete({ where: { id: staffId } });
       await tx.user.delete({ where: { id: staff.userId } });
-    });
+    }));
 
     await prisma.auditLog.create({
       data: {

@@ -3,7 +3,10 @@ import crypto from 'crypto';
 import prisma from '../prisma';
 import { getHWID, getLegacyHWID } from '../utils/hwid';
 
-const SECRET_KEY = process.env.LICENSE_SECRET || 'HMS-SECRET-LICENSE-KEY-2026-XQZ';
+const SECRET_KEY = process.env.LICENSE_SECRET;
+if (!SECRET_KEY) {
+  throw new Error('FATAL ERROR: LICENSE_SECRET is not defined in environment variables.');
+}
 const normalizedSecret = crypto.createHash('sha256').update(SECRET_KEY).digest();
 
 function decrypt(text: string) {

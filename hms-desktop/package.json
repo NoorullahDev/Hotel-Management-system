@@ -60,6 +60,10 @@
       {
         "from": "../hms-frontend/out",
         "to": "hms-frontend/out"
+      },
+      {
+        "from": "secrets.env",
+        "to": "hms-desktop/secrets.env"
       }
     ],
     "win": {

@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import fs from 'fs';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import { initializeSocket } from './socket';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -181,8 +183,45 @@ async function seedDefaultRolePermissions() {
   }
 }
 
+// First-run only: when the database has no users at all (fresh installation),
+// create an 'admin' account with a random temporary password that must be
+// changed on first login. The password is logged once, and the Electron shell
+// surfaces it to the installer in a dialog. It is never a hardcoded default.
+async function seedDefaultAdmin() {
+  try {
+    const userCount = await prisma.user.count();
+    if (userCount > 0) return;
+
+    // Fresh installations start from an empty init.db, so the Admin role may
+    // not exist yet. requirePermission treats the Admin role as full-access,
+    // so an empty permission set is fine.
+    let adminRole = await prisma.role.findUnique({ where: { name: 'Admin' } });
+    if (!adminRole) {
+      adminRole = await prisma.role.create({ data: { name: 'Admin', permissions: [] } });
+    }
+
+    const tempPassword = crypto.randomBytes(6).toString('base64url');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+    await prisma.user.create({
+      data: {
+        username: 'admin',
+        email: 'admin@hotel.local',
+        name: 'System Administrator',
+        roleId: adminRole.id,
+        passwordHash,
+        mustChangePassword: true,
+      }
+    });
+    console.log(`[FIRST_RUN_ADMIN_CREATED] username=admin password=${tempPassword}`);
+  } catch (err) {
+    console.error('Failed to seed default admin:', err);
+  }
+}
+
 server.listen(port, async () => {
   await seedDefaultCategories();
   await seedDefaultRolePermissions();
+  await seedDefaultAdmin();
   console.log(`Server is running on port ${port}`);
 });

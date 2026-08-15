@@ -1,10 +1,11 @@
 import 'dotenv/config';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import bcrypt from 'bcrypt';
 
 const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL || 'file:./dev.db'
+  url: process.env.DATABASE_URL || 'file:./prisma/dev.local.db'
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -28,9 +29,10 @@ async function main() {
     roles.push(r);
   }
 
-  // 3. Admin User
+  // 3. Admin User (random temporary password, forced change on first login)
   const adminRole = roles.find(r => r.name === 'Admin');
-  const passwordHash = await bcrypt.hash('123456', 10);
+  const tempPassword = crypto.randomBytes(6).toString('base64url');
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
   await prisma.user.create({
     data: {
       username: 'noor',
@@ -38,8 +40,10 @@ async function main() {
       passwordHash,
       name: 'Super Admin',
       roleId: adminRole!.id,
+      mustChangePassword: true,
     }
   });
+  console.log('Admin temporary password (must be changed on first login):', tempPassword);
 
   // 4. Room Types & Rooms
   const roomTypesData = ['Single', 'Double', 'Deluxe', 'Suite'];

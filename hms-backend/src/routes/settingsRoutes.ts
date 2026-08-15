@@ -25,7 +25,10 @@ const router = Router();
 const requireAutoBackupKey = (req: Request, res: Response, next: NextFunction) => {
   const expected = process.env.AUTO_BACKUP_KEY;
   const provided = req.headers['x-auto-backup-key'];
-  if (!expected || !provided || provided !== expected) {
+  if (!expected) {
+    return res.status(500).json({ message: 'Auto backup key is not configured on the server' });
+  }
+  if (!provided || provided !== expected) {
     return res.status(403).json({ message: 'Forbidden: Invalid auto backup key' });
   }
   next();

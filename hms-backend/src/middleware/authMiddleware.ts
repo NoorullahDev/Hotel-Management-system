@@ -20,8 +20,6 @@ export const authenticateJWT = (req: AuthRequest, res: Response, next: NextFunct
 
   if (authHeader) {
     token = authHeader.split(' ')[1];
-  } else if (req.query && req.query.token) {
-    token = req.query.token as string;
   }
 
   if (token) {

@@ -14,6 +14,7 @@ let backendProcess = null;
 let autoBackupKey = null;
 let autoBackupPerformed = false;
 let isQuitting = false;
+let firstRunAdmin = null;
 
 // Determine paths based on whether we're in dev or production
 function getBasePath() {
@@ -21,6 +22,23 @@ function getBasePath() {
     return path.join(process.resourcesPath);
   }
   return path.join(__dirname, '..');
+}
+
+// Product-wide license encryption secret. Shipped as hms-desktop/secrets.env
+// (packaged via extraResources, gitignored) so it is never baked into the
+// compiled backend. The backend refuses to start without it.
+function getLicenseSecret() {
+  const secretEnvPath = path.join(getBasePath(), 'hms-desktop', 'secrets.env');
+  try {
+    if (fs.existsSync(secretEnvPath)) {
+      const content = fs.readFileSync(secretEnvPath, 'utf8');
+      const match = content.match(/^\s*LICENSE_SECRET\s*=\s*(.+)\s*$/m);
+      if (match) return match[1].trim();
+    }
+  } catch (err) {
+    console.warn('Could not read license secret file:', err);
+  }
+  return undefined;
 }
 
 function getBackendPath() {
@@ -86,7 +104,7 @@ function startBackend() {
         }
       }
     } else {
-      dbPath = path.join(backendDir, 'prisma', 'dev.db');
+      dbPath = path.join(backendDir, 'prisma', 'dev.local.db');
       console.log('Using development SQLite database:', dbPath);
     }
     
@@ -138,6 +156,7 @@ function startBackend() {
         UPLOADS_DIR: uploadsPath,
         JWT_SECRET: jwtSecret,
         JWT_REFRESH_SECRET: refreshSecret,
+        LICENSE_SECRET: getLicenseSecret(),
         AUTO_BACKUP_KEY: autoBackupKey,
         BACKUP_DIR: backupDir
       },
@@ -149,6 +168,10 @@ function startBackend() {
     backendProcess.stdout.on('data', (data) => {
       const output = data.toString();
       console.log(`[Backend] ${output}`);
+      const firstRunMatch = output.match(/\[FIRST_RUN_ADMIN_CREATED\] username=(\S+) password=(\S+)/);
+      if (firstRunMatch) {
+        firstRunAdmin = { username: firstRunMatch[1], password: firstRunMatch[2] };
+      }
       if (output.includes('Server is running')) {
         resolve();
       }
@@ -396,6 +419,18 @@ app.whenReady().then(async () => {
 
     console.log('App is ready! Loading frontend...');
     mainWindow.loadURL(BACKEND_URL);
+
+    // First launch on a fresh installation: show the auto-generated temporary
+    // admin credentials so the operator can log in and set their own password.
+    if (firstRunAdmin) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'First-Time Setup',
+        message: 'A temporary administrator account was created for this installation.',
+        detail: `Username: ${firstRunAdmin.username}\nTemporary password: ${firstRunAdmin.password}\n\nYou will be asked to set a new password when you log in.`,
+        buttons: ['OK']
+      });
+    }
 
   } catch (err) {
     console.error('Startup error:', err);

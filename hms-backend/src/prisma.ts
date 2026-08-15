@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
 const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL || 'file:./dev.db',
+  url: process.env.DATABASE_URL || 'file:./prisma/dev.local.db',
   // better-sqlite3 `timeout` = SQLITE busy_timeout (ms). Must stay well below the
   // interactive-transaction timeout used in booking.service.ts so a transient lock
   // (e.g. a second process/connection touching the DB) waits instead of aborting a

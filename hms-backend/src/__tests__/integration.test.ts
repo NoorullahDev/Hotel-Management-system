@@ -20,8 +20,17 @@ describe('Full System Integration Test', () => {
   let roomTypeId: string;
   let bookingId: string;
   let foodOrderId: string;
+  let taxSettingsBackup: { key: string; value: any }[] = [];
 
   beforeAll(async () => {
+    // Capture any pre-existing tax settings so we can restore them in afterAll.
+    taxSettingsBackup = await Promise.all(
+      ['rate', 'enabled', 'name'].map(async (key) => {
+        const existing = await prisma.setting.findUnique({ where: { key } });
+        return { key, value: existing?.value };
+      })
+    );
+
     // Setup settings for TAX
     await prisma.setting.upsert({
       where: { key: 'rate' },
@@ -54,6 +63,19 @@ describe('Full System Integration Test', () => {
   });
 
   afterAll(async () => {
+    // Restore tax settings to their prior values (or remove them if absent)
+    for (const backup of taxSettingsBackup) {
+      if (backup.value === undefined) {
+        await prisma.setting.deleteMany({ where: { key: backup.key } });
+      } else {
+        await prisma.setting.upsert({
+          where: { key: backup.key },
+          update: { value: backup.value },
+          create: { key: backup.key, category: 'tax', value: backup.value }
+        });
+      }
+    }
+
     // Cleanup
     if (bookingId) {
       await prisma.payment.deleteMany({ where: { bookingId } });
@@ -128,12 +150,24 @@ describe('Full System Integration Test', () => {
       status: (code: number) => res
     } as unknown as Response;
 
+    // Before checkout, settle the outstanding balance (payments so far: 12000;
+    // total is 11500 + 20% VAT = 13800, so 1800 remains).
+    await prisma.payment.create({
+      data: { bookingId, amount: 1800, method: 'Cash' }
+    });
+
     let capturedError: any;
     await checkoutBooking(req, res, ((err: any) => { capturedError = err; }) as any);
     
     expect(capturedError).toBeUndefined();
     expect(jsonResponse).toBeDefined();
-    expect(jsonResponse.bookingId).toBe(bookingId);
+    expect(jsonResponse.id ?? jsonResponse.bookingId).toBe(bookingId);
+
+    // Checkout must mark the booking CHECKED_OUT and free the room
+    const updatedBooking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    expect(updatedBooking?.status).toBe('CHECKED_OUT');
+    const updatedRoom = await prisma.room.findUnique({ where: { id: roomId } });
+    expect(updatedRoom?.status).toBe('AVAILABLE');
 
     // Check if the invoice items include the restaurant and dynamic 20% tax
     const invoiceItems = await prisma.invoiceItem.findMany({

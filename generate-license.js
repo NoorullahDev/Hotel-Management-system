@@ -1,7 +1,25 @@
 const crypto = require('crypto');
+const path = require('path');
 
-// This must match exactly what is in your backend licenseController.ts
-const SECRET_KEY = process.env.LICENSE_SECRET || 'HMS-SECRET-LICENSE-KEY-2026-XQZ';
+// Load LICENSE_SECRET from hms-backend/.env if it is not already set, so the
+// tool can be run straight from the repo root without extra setup. Resolve
+// dotenv from the backend's node_modules since it is not installed at root.
+let dotenv = null;
+try { dotenv = require('dotenv'); } catch (e) {
+  dotenv = require(path.join(__dirname, 'hms-backend', 'node_modules', 'dotenv'));
+}
+dotenv.config({ path: path.join(__dirname, 'hms-backend', '.env') });
+
+// This must match LICENSE_SECRET in hms-backend/.env and
+// hms-desktop/secrets.env (the value shipped with each installation).
+const SECRET_KEY = process.env.LICENSE_SECRET;
+if (!SECRET_KEY) {
+  console.error(
+    'Error: LICENSE_SECRET is not defined.\n' +
+    'Set it in hms-backend/.env (same value as hms-desktop/secrets.env) and try again.'
+  );
+  process.exit(1);
+}
 const normalizedSecret = crypto.createHash('sha256').update(SECRET_KEY).digest();
 
 function generateLicense(hwid, days) {

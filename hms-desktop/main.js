@@ -104,7 +104,12 @@ function startBackend() {
         }
       }
     } else {
-      dbPath = path.join(backendDir, 'prisma', 'dev.local.db');
+      // Development: use the same dev.db that `npm run dev` (nodemon) uses.
+      // This keeps Electron dev and direct-backend runs on the same database
+      // so credentials and data are always consistent.
+      // dev.local.db is reserved exclusively for integration tests (vitest)
+      // so test runs never pollute the working development database.
+      dbPath = path.join(backendDir, 'prisma', 'dev.db');
       console.log('Using development SQLite database:', dbPath);
     }
     

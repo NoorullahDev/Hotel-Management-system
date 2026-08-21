@@ -12,6 +12,7 @@ export default function BackupRestoreTab() {
   const [lastBackup, setLastBackup] = useState<string | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restorePassword, setRestorePassword] = useState('');
   const [successModal, setSuccessModal] = useState({ show: false, message: '' });
 
   React.useEffect(() => {
@@ -61,9 +62,12 @@ export default function BackupRestoreTab() {
         filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
       } else {
         const now = new Date();
-        const dateStr = now.toISOString().slice(0, 10);
+        // Use local date/time parts to avoid UTC midnight crossing giving wrong date
         const pad = (n: number) => String(n).padStart(2, '0');
-        filename = `HMS_Backup_${dateStr}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.zip`;
+        const y  = now.getFullYear();
+        const mo = pad(now.getMonth() + 1);
+        const d  = pad(now.getDate());
+        filename = `HMS_Backup_${y}-${mo}-${d}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.zip`;
       }
 
       const url = window.URL.createObjectURL(blob);
@@ -92,6 +96,13 @@ export default function BackupRestoreTab() {
 
   const handleRestore = async () => {
     if (!restoreFile) return;
+
+    // Guard: password is required by the backend to confirm the destructive operation
+    if (!restorePassword.trim()) {
+      setError('Please enter your current password to confirm the restore.');
+      return;
+    }
+
     setRestoreLoading(true);
     setError('');
     setSuccess('');
@@ -100,10 +111,13 @@ export default function BackupRestoreTab() {
     try {
       const formData = new FormData();
       formData.append('file', restoreFile);
+      // Backend requires currentPassword to authorise overwriting the entire DB
+      formData.append('currentPassword', restorePassword);
 
       const responseData = await api.post<any>('/api/settings/restore', formData);
       setSuccessModal({ show: true, message: responseData.message || 'Restore completed successfully. Please restart the application to apply all restored data.' });
       setRestoreFile(null);
+      setRestorePassword('');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -236,20 +250,38 @@ export default function BackupRestoreTab() {
               </div>
               <h3 className="text-theme-text font-semibold text-lg">Confirm Restore</h3>
             </div>
-            <p className="text-theme-muted text-sm mb-6">
+            <p className="text-theme-muted text-sm mb-4">
               Are you sure you want to restore from <span className="text-theme-text font-medium">{restoreFile?.name}</span>?
               This will overwrite current settings data.
             </p>
+
+            {/* Password confirmation — required by the backend */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-theme-muted-light mb-2">
+                Enter your current password to confirm
+              </label>
+              <input
+                type="password"
+                value={restorePassword}
+                onChange={(e) => setRestorePassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && restorePassword.trim()) handleRestore(); }}
+                placeholder="Current password"
+                className="w-full px-4 py-2.5 bg-theme-main border border-theme-border rounded-xl text-theme-text placeholder-theme-muted text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                autoFocus
+              />
+            </div>
+
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => { setShowRestoreConfirm(false); setRestoreFile(null); }}
+                onClick={() => { setShowRestoreConfirm(false); setRestoreFile(null); setRestorePassword(''); }}
                 className="px-5 py-2.5 bg-theme-main hover:bg-theme-card shadow-soft border border-theme-border text-theme-muted-light rounded-xl text-sm font-medium transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRestore}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-sm font-medium transition-colors"
+                disabled={!restorePassword.trim()}
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium transition-colors"
               >
                 Restore Now
               </button>

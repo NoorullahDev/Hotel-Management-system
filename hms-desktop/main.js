@@ -12,8 +12,10 @@ const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
 let mainWindow = null;
 let backendProcess = null;
 let autoBackupKey = null;
-let autoBackupPerformed = false;
+// NOTE: autoBackupPerformed flag removed — each backup opportunity (startup and
+// quit) is now independent so both always run within a session.
 let isQuitting = false;
+let startupBackupDone = false; // tracks startup backup only to avoid duplication on activate
 let firstRunAdmin = null;
 
 // Determine paths based on whether we're in dev or production
@@ -352,25 +354,60 @@ function killAllProcesses() {
   }
 }
 
-// Create an automatic backup before the app quits by reusing the backend's
-// existing backup pipeline (single source of truth). The internal endpoint is
-// guarded by AUTO_BACKUP_KEY so it can't be triggered from the frontend.
-async function runAutoBackup() {
-  if (autoBackupPerformed || !autoBackupKey) return;
-  autoBackupPerformed = true;
+// Append a line to backup.log in the Backup folder (Electron side).
+// This records failures that happen before the backend has even started,
+// or when the backend is unreachable, providing a full audit trail.
+function writeElectronBackupLog(level, message) {
   try {
+    const backupDir = getBackupDir();
+    if (!backupDir) return;
+    const logPath = path.join(backupDir, 'backup.log');
+    const ts = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi', hour12: false });
+    const line = `[${ts}] [${level}] ${message}\n`;
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.appendFileSync(logPath, line, 'utf8');
+  } catch (e) {
+    console.warn('[AutoBackup] Could not write Electron backup.log:', e.message || e);
+  }
+}
+
+/**
+ * Trigger the auto-backup endpoint on the backend.
+ * @param {string} trigger - Human-readable reason (e.g. 'STARTUP' or 'QUIT').
+ * @param {number} [timeoutMs=45000] - Abort timeout in milliseconds.
+ *
+ * Design: Each call is fully independent — no global "already done" flag —
+ * so both the startup backup and the quit-time backup always execute.
+ * The backend itself names files with a second-precision timestamp and
+ * appends a counter suffix if two files would otherwise collide.
+ */
+async function runAutoBackup(trigger = 'QUIT', timeoutMs = 45000) {
+  if (!autoBackupKey) {
+    const msg = `[${trigger}] Skipped: no autoBackupKey available (backend may not have started).`;
+    console.warn('[AutoBackup]', msg);
+    writeElectronBackupLog('ERROR', msg);
+    return;
+  }
+  try {
+    console.log(`[AutoBackup] Triggering ${trigger} backup...`);
     const res = await fetch(`${BACKEND_URL}/api/settings/backup/auto`, {
       method: 'POST',
       headers: { 'X-Auto-Backup-Key': autoBackupKey },
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`Backend returned ${res.status}${text ? `: ${text}` : ''}`);
     }
-    console.log('[AutoBackup] Automatic backup created successfully.');
+    const json = await res.json().catch(() => ({}));
+    const savedFile = json.filename || '(unknown)';
+    console.log(`[AutoBackup] ${trigger} backup saved: ${savedFile}`);
+    // The backend already writes to backup.log on success, but we echo it here
+    // for the Electron console as well (visible in DevTools / packaged logs).
   } catch (err) {
-    console.error('[AutoBackup] Failed to create automatic backup:', err && err.message || err);
+    const msg = `[${trigger}] Backup failed: ${err && err.message || err}`;
+    console.error('[AutoBackup]', msg);
+    writeElectronBackupLog('ERROR', msg);
   }
 }
 
@@ -425,6 +462,15 @@ app.whenReady().then(async () => {
     console.log('App is ready! Loading frontend...');
     mainWindow.loadURL(BACKEND_URL);
 
+    // ── Startup backup ───────────────────────────────────────────────────────
+    // Run 3 seconds after the frontend loads so the app feels instant on
+    // startup. This ensures data is backed up even if the app is later
+    // force-closed or crashes before the quit-time backup can run.
+    if (!startupBackupDone) {
+      startupBackupDone = true;
+      setTimeout(() => runAutoBackup('STARTUP'), 3000);
+    }
+
     // First launch on a fresh installation: show the auto-generated temporary
     // admin credentials so the operator can log in and set their own password.
     if (firstRunAdmin) {
@@ -453,12 +499,15 @@ app.on('window-all-closed', () => {
 });
 
 // Run the automatic backup before quitting, then shut down the backend.
+// This is SEPARATE from the startup backup — both always run in a session.
 app.on('before-quit', (event) => {
   if (isQuitting) return;
   event.preventDefault();
   isQuitting = true;
   (async () => {
-    await runAutoBackup();
+    // Give the quit backup up to 60 s. The process stays alive until the
+    // await resolves, so the backend won't be killed mid-write.
+    await runAutoBackup('QUIT', 60000);
     killAllProcesses();
     app.quit();
   })();

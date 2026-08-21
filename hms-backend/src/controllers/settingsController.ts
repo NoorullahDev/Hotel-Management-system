@@ -319,11 +319,22 @@ import { generateSqlDump } from '../utils/sqlDump';
 /**
  * Build a unique backup filename with date + time (including seconds) so
  * consecutive backups never overwrite each other.
+ *
+ * IMPORTANT: uses LOCAL date/time parts (getFullYear, getMonth … getSeconds)
+ * rather than toISOString() which returns UTC. Mixing UTC date with local
+ * hours caused the filename date to be wrong around midnight crossings (e.g.
+ * Pakistan is UTC+5, so 1 AM local = 8 PM UTC previous day → the backup
+ * would be filed under yesterday's date even though locally it's today).
  */
 function buildBackupFilename(date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
-  const dateStr = date.toISOString().slice(0, 10);
-  return `HMS_Backup_${dateStr}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}.zip`;
+  const y  = date.getFullYear();
+  const mo = pad(date.getMonth() + 1);
+  const d  = pad(date.getDate());
+  const h  = pad(date.getHours());
+  const mi = pad(date.getMinutes());
+  const s  = pad(date.getSeconds());
+  return `HMS_Backup_${y}-${mo}-${d}_${h}-${mi}-${s}.zip`;
 }
 
 /**
@@ -417,13 +428,37 @@ export const downloadBackup = asyncHandler(async (req: AuthRequest, res: Respons
  * route middleware so only the desktop main process can trigger it.
  */
 export const createAutoBackup = asyncHandler(async (req: Request, res: Response) => {
-    const { buffer, filename: baseFilename } = await buildBackupArchive();
-
     const backupDir = process.env.BACKUP_DIR || path.join(os.homedir(), 'Desktop', 'Backup');
     fs.mkdirSync(backupDir, { recursive: true });
 
+    // Helper: append a timestamped line to backup.log inside the backup folder.
+    // This gives the operator a permanent audit trail even when backups fail,
+    // because the log file persists across app restarts (unlike console output).
+    const writeBackupLog = (level: 'SUCCESS' | 'ERROR', message: string) => {
+      try {
+        const logPath = path.join(backupDir, 'backup.log');
+        const ts = new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi', hour12: false });
+        const line = `[${ts}] [${level}] ${message}\n`;
+        fs.appendFileSync(logPath, line, 'utf8');
+      } catch (logErr) {
+        console.error('[AutoBackup] Could not write to backup.log:', logErr);
+      }
+    };
+
+    let buffer: Buffer;
+    let baseFilename: string;
+
+    try {
+      ({ buffer, filename: baseFilename } = await buildBackupArchive());
+    } catch (archiveErr: any) {
+      const msg = `Failed to build backup archive: ${archiveErr?.message || archiveErr}`;
+      console.error('[AutoBackup]', msg);
+      writeBackupLog('ERROR', msg);
+      return res.status(500).json({ message: msg });
+    }
+
     // Guarantee we never overwrite an existing backup. If a file with the same
-    // date+time name already exists (e.g. two closes within the same second),
+    // date+time name already exists (e.g. two triggers within the same second),
     // append a numeric suffix to keep every backup on disk.
     let filename = baseFilename;
     let filePath = path.join(backupDir, filename);
@@ -432,8 +467,17 @@ export const createAutoBackup = asyncHandler(async (req: Request, res: Response)
       filename = `${path.basename(baseFilename, '.zip')}-${++counter}.zip`;
       filePath = path.join(backupDir, filename);
     }
-    fs.writeFileSync(filePath, buffer);
 
+    try {
+      fs.writeFileSync(filePath, buffer);
+    } catch (writeErr: any) {
+      const msg = `Failed to write backup file to disk at ${filePath}: ${writeErr?.message || writeErr}`;
+      console.error('[AutoBackup]', msg);
+      writeBackupLog('ERROR', msg);
+      return res.status(500).json({ message: msg });
+    }
+
+    // Record timestamp in settings for the UI's "Last Backup" display.
     await prisma.setting.upsert({
       where:  { key: 'lastBackupAt' },
       update: { value: new Date().toISOString() as any },
@@ -453,13 +497,16 @@ export const createAutoBackup = asyncHandler(async (req: Request, res: Response)
             userId:  admin.id,
             action:  'AUTO_BACKUP',
             module:  'Settings',
-            details: 'Automatic backup created on application close',
+            details: `Automatic backup saved: ${filename}`,
           },
         });
       }
     } catch (err) {
-      console.error('Failed to record automatic backup audit entry:', err);
+      console.error('[AutoBackup] Failed to record audit entry:', err);
     }
+
+    writeBackupLog('SUCCESS', `Backup saved: ${filename} (${(buffer.length / 1024).toFixed(1)} KB)`);
+    console.log(`[AutoBackup] Backup saved: ${filePath}`);
 
     res.json({ message: 'Automatic backup created successfully', filename, path: filePath });
   });

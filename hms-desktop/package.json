@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "prebuild": "npm --prefix ../hms-frontend run build && npm --prefix ../hms-backend run build",
+    "prebuild": "npm --prefix ../hms-frontend run build && npm --prefix ../hms-backend run build && npm --prefix ../hms-backend run build:initdb",
     "build": "electron-builder --win",
     "build:all": "electron-builder --win --mac --linux"
   },

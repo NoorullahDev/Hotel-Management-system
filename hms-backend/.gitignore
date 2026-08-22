@@ -7,6 +7,7 @@ node_modules
 
 *.db
 !prisma/dev.db
+!prisma/init.db
 prisma/dev.local.db
 *.db.bak
 uploads/*

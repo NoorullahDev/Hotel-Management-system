@@ -9,7 +9,7 @@ import {
   MapPin, Building2, Search, Crown, Menu, X, Sun, Moon
 } from 'lucide-react';
 import Link from 'next/link';
-import { connectSocket } from '../../lib/socket';
+import { connectSocket, disconnectSocket } from '../../lib/socket';
 import { Outfit } from 'next/font/google';
 import { API_BASE } from '../../lib/config';
 import { api } from '@/lib/api';
@@ -107,6 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setUserData(data);
       } catch (err) {
         console.error('Failed to fetch user', err);
+        disconnectSocket();
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('hms_user');
@@ -125,6 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } catch (err) {
       console.error('Logout error', err);
     } finally {
+      disconnectSocket();
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('hms_user');

@@ -1,7 +1,5 @@
 import express from 'express';
 import { getSummary } from '../controllers/dashboardController';
-import { getBookings } from '../controllers/bookingController';
-import { getNotifications } from '../controllers/notificationController';
 import { authenticateJWT } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -14,8 +12,10 @@ router.use((req, res, next) => {
   return authenticateJWT(req, res, next);
 });
 
+// NOTE: /api/bookings and /api/notifications are served by their dedicated
+// routers (mounted earlier in server.ts); registering them here would be
+// unreachable shadowed duplicates.
+
 router.get('/dashboard/summary', getSummary);
-router.get('/bookings', getBookings);
-router.get('/notifications', getNotifications);
 
 export default router;

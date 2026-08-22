@@ -1,6 +1,8 @@
 'use client';
-import React, { useState } from 'react';
-import { DollarSign, CheckCircle, Loader2 } from 'lucide-react';
+import React from 'react';
+import { DollarSign } from 'lucide-react';
+import SettingsSaveBar from './SettingsSaveBar';
+import { useSettingsSave } from './useSettingsSave';
 
 interface Props {
   settings: any;
@@ -22,8 +24,7 @@ const SYMBOLS: Record<string, string> = {
 };
 
 export default function CurrencyTab({ settings, onSettingsChange, onSave, setHasUnsavedChanges }: Props) {
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const { saving, success, save } = useSettingsSave(onSave);
 
   const get = (key: string, def = '') => settings?.hotel?.[key] || def;
 
@@ -34,12 +35,9 @@ export default function CurrencyTab({ settings, onSettingsChange, onSave, setHas
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    await onSave('hotel');
-    setSaving(false);
-    setSuccess(true);
-    setHasUnsavedChanges?.(false);
-    setTimeout(() => setSuccess(false), 3000);
+    if (await save('hotel', 'Failed to save currency settings.')) {
+      setHasUnsavedChanges?.(false);
+    }
   };
 
   return (
@@ -79,21 +77,7 @@ export default function CurrencyTab({ settings, onSettingsChange, onSave, setHas
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-4 pt-2">
-        {success && (
-          <span className="flex items-center gap-1.5 text-green-500 text-sm font-medium animate-in fade-in">
-            <CheckCircle size={16} /> Saved Successfully
-          </span>
-        )}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition-all disabled:opacity-50 active:scale-95 shadow-md"
-        >
-          {saving ? <Loader2 size={18} className="animate-spin" /> : null}
-          Save Changes
-        </button>
-      </div>
+      <SettingsSaveBar saving={saving} success={success} onSave={handleSave} />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Key, Mail, CheckCircle, LogOut, Loader2, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { disconnectSocket } from '@/lib/socket';
 
 export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedChanges?: (val: boolean) => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -55,6 +56,7 @@ export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedCha
       setHasUnsavedChanges?.(false);
       
       setTimeout(() => {
+        disconnectSocket();
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('hms_user');
@@ -90,6 +92,7 @@ export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedCha
       }
       
       setTimeout(() => {
+        disconnectSocket();
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('hms_user');
@@ -105,6 +108,7 @@ export default function SecurityTab({ setHasUnsavedChanges }: { setHasUnsavedCha
     try {
       await api.post('/api/auth/logout');
 
+      disconnectSocket();
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('hms_user');

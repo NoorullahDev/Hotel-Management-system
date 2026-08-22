@@ -1,7 +1,9 @@
 'use client';
 import React, { useState } from 'react';
-import { Building2, Upload, CheckCircle, Loader2 } from 'lucide-react';
+import { Building2, Upload } from 'lucide-react';
 import { api } from '@/lib/api';
+import SettingsSaveBar from './SettingsSaveBar';
+import { useSettingsSave } from './useSettingsSave';
 
 interface Props {
   settings: any;
@@ -11,8 +13,7 @@ interface Props {
 }
 
 export default function GeneralSettingsTab({ settings, onSettingsChange, onSave, setHasUnsavedChanges }: Props) {
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const { saving, success, save } = useSettingsSave(onSave);
   const [uploading, setUploading] = useState<string | null>(null);
 
   const get = (key: string, def = '') => settings?.general?.[key] || def;
@@ -61,16 +62,8 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave,
       return;
     }
 
-    setSaving(true);
-    try {
-      await onSave('general');
-      setSuccess(true);
+    if (await save('general', 'Failed to save changes.')) {
       setHasUnsavedChanges?.(false);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      alert('Failed to save changes.');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -219,21 +212,7 @@ export default function GeneralSettingsTab({ settings, onSettingsChange, onSave,
       </div>
 
       {/* Save Bar */}
-      <div className="flex items-center justify-end gap-4 pt-2">
-        {success && (
-          <span className="flex items-center gap-1.5 text-green-500 text-sm font-medium animate-in fade-in">
-            <CheckCircle size={16} /> Saved Successfully
-          </span>
-        )}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-8 py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-xl transition-all disabled:opacity-50 active:scale-95 shadow-md"
-        >
-          {saving ? <Loader2 size={18} className="animate-spin" /> : null}
-          Save Changes
-        </button>
-      </div>
+      <SettingsSaveBar saving={saving} success={success} onSave={handleSave} />
     </div>
   );
 }

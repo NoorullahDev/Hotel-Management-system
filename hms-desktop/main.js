@@ -1,5 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -148,6 +148,31 @@ function startBackend() {
 
     // Free the port first so a stale backend from a previous run can't block startup
     await killProcessOnPort(BACKEND_PORT);
+
+    // Apply pending Prisma migrations before serving so app updates that change
+    // the schema are migrated onto the user's existing AppData database. Fresh
+    // installs run against the just-copied init.db, which is already at the
+    // latest migration version, making this a no-op for them. Dev mode is
+    // skipped — the developer migrates dev.db through the normal workflow.
+    if (app.isPackaged) {
+      const prismaCli = path.join(backendDir, 'node_modules', 'prisma', 'build', 'index.js');
+      if (!fs.existsSync(prismaCli)) {
+        console.warn('[Migrate] Prisma CLI not found, skipping schema migration:', prismaCli);
+      } else {
+        console.log('[Migrate] Applying database migrations...');
+        const result = spawnSync(process.execPath, [prismaCli, 'migrate', 'deploy'], {
+          cwd: backendDir,
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', DATABASE_URL: dbUrl },
+          encoding: 'utf8',
+          windowsHide: true,
+        });
+        if (result.error || result.status !== 0) {
+          throw new Error(`Database migration failed: ${(result.stderr || result.stdout || result.error || '').toString().trim()}`);
+        }
+        const summary = (result.stdout || '').trim().split('\n').filter(Boolean).pop();
+        console.log('[Migrate]', summary || 'migrations up to date');
+      }
+    }
 
     // Use node server.js for production, npx ts-node for dev
     const command = app.isPackaged ? 'node' : (process.platform === 'win32' ? 'npx.cmd' : 'npx');
